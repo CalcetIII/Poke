@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101829">
+  <title>Neon Run — Arcade Club</title>
+  <style>
+    :root { color-scheme:dark; --ink:#f5f2df; --muted:#a7b3c2; --mint:#78f0bc; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; display:grid; place-items:center; padding:16px; color:var(--ink); font:15px/1.5 "Trebuchet MS",system-ui,sans-serif; background:radial-gradient(ellipse at 50% 0%,#263c58 0,#111a2b 55%,#0b1120 100%); }
+    .shell { width:min(1000px,100%); }
+    .top { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+    a { color:var(--mint); font-weight:800; text-decoration:none; }
+    .panel { padding:clamp(12px,3vw,23px); border:1px solid #32445c; border-radius:18px; background:linear-gradient(160deg,#1c2a40,#111b2b); box-shadow:0 18px 50px #05091488; }
+    .heading { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:11px; }
+    h1 { margin:0; font-size:clamp(24px,5vw,36px); }
+    .hint { margin:3px 0 0; color:var(--muted); font-size:13px; }
+    select, button { font:inherit; }
+    select { max-width:48%; padding:9px 11px; color:var(--ink); border:1px solid #435b75; border-radius:9px; background:#17263a; }
+    .meta { display:flex; justify-content:space-between; gap:10px; margin:9px 2px; color:var(--muted); font-size:13px; }
+    .meta strong { color:#ffd166; }
+    .track { height:7px; margin-bottom:10px; overflow:hidden; border-radius:9px; background:#0b1421; }
+    #progress { width:0; height:100%; background:linear-gradient(90deg,#78f0bc,#83cfff); transition:width .08s linear; }
+    canvas { display:block; width:100%; height:auto; border:2px solid #465d78; border-radius:10px; background:#101a31; touch-action:none; }
+    .below { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:11px; }
+    #status { margin:0; min-height:25px; color:#d5dfeb; }
+    button { border:0; border-radius:10px; padding:10px 17px; color:#172331; background:linear-gradient(#ffe08c,#ffc34f); box-shadow:0 4px 0 #b47528; font-weight:900; cursor:pointer; }
+    button:hover { filter:brightness(1.08); }
+    .touch { display:none; margin-top:12px; justify-content:center; }
+    .touch button { width:min(100%,260px); padding:14px; color:var(--ink); background:#293b53; border:1px solid #51637a; box-shadow:none; touch-action:manipulation; }
+    @media (pointer:coarse) { .touch { display:flex; } }
+    @media (max-width:560px) { body { padding:9px; } .panel { padding:11px; } .heading { align-items:flex-start; flex-direction:column; } select { max-width:100%; width:100%; } .below { align-items:stretch; flex-direction:column; } .below button { width:100%; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <nav class="top"><a href="./">← Todos los juegos</a><span>ARCADE CLUB</span></nav>
+    <section class="panel">
+      <div class="heading">
+        <div><h1>💠 Neon Run</h1><p class="hint">Salta al ritmo, esquiva trampas y supera cada circuito.</p></div>
+        <select id="level" aria-label="Elegir nivel">
+          <option value="0">Nivel 1 · Primer pulso</option>
+          <option value="1">Nivel 2 · Doble salto</option>
+          <option value="2">Nivel 3 · Zona de peligro</option>
+          <option value="3">Nivel 4 · Último destello</option>
+        </select>
+      </div>
+      <div class="meta"><span id="level-name">NIVEL 1</span><span>MEJOR: <strong id="best">0%</strong></span></div>
+      <div class="track"><div id="progress"></div></div>
+      <canvas id="game" width="960" height="420" aria-label="Nivel de plataformas Neon Run"></canvas>
+      <div class="below"><p id="status" aria-live="polite">Pulsa JUGAR o espacio para empezar · Salto: Espacio, ↑ o toque</p><button id="action" type="button">JUGAR</button></div>
+      <div class="touch"><button id="jump" type="button">TOCA PARA SALTAR</button></div>
+    </section>
+  </main>
+  <script>
+    (() => {
+      "use strict";
+      const W = 960, H = 420, GROUND = 350, SPEED = 300;
+      const levels = [
+        { name:"Primer pulso", color:"#62f0d0", length:4300, hazards:[
+          [620,"spike"],[900,"spike"],[1180,"block"],[1490,"spike"],[1660,"spike"],[1950,"block"],[2220,"spike"],[2470,"spike"],[2640,"spike"],[2960,"block"],[3260,"spike"],[3440,"spike"],[3780,"block"],[4050,"spike"]
+        ] },
+        { name:"Doble salto", color:"#7bd7ff", length:4900, hazards:[
+          [580,"spike"],[760,"spike"],[1040,"block"],[1260,"spike"],[1430,"block"],[1690,"spike"],[1880,"spike"],[2050,"spike"],[2370,"block"],[2600,"spike"],[2790,"block"],[3050,"spike"],[3220,"spike"],[3490,"spike"],[3670,"block"],[3950,"spike"],[4120,"spike"],[4420,"block"],[4660,"spike"]
+        ] },
+        { name:"Zona de peligro", color:"#ff7ecb", length:5400, hazards:[
+          [540,"block"],[780,"spike"],[950,"spike"],[1200,"block"],[1440,"spike"],[1610,"spike"],[1900,"block"],[2130,"spike"],[2310,"spike"],[2480,"block"],[2750,"spike"],[2920,"spike"],[3090,"spike"],[3420,"block"],[3650,"spike"],[3820,"block"],[4090,"spike"],[4260,"spike"],[4520,"block"],[4760,"spike"],[4930,"spike"],[5160,"spike"]
+        ] },
+        { name:"Último destello", color:"#ffd166", length:6000, hazards:[
+          [520,"spike"],[690,"block"],[940,"spike"],[1110,"spike"],[1280,"spike"],[1580,"block"],[1810,"spike"],[1980,"block"],[2240,"spike"],[2410,"spike"],[2580,"spike"],[2900,"block"],[3130,"spike"],[3300,"spike"],[3470,"block"],[3740,"spike"],[3910,"spike"],[4080,"spike"],[4410,"block"],[4640,"spike"],[4810,"block"],[5070,"spike"],[5240,"spike"],[5410,"spike"],[5700,"block"],[5870,"spike"]
+        ] }
+      ];
+      const canvas = document.getElementById("game"), ctx = canvas.getContext("2d");
+      const levelSelect = document.getElementById("level"), action = document.getElementById("action");
+      const status = document.getElementById("status"), progress = document.getElementById("progress");
+      const bestLabel = document.getElementById("best"), levelName = document.getElementById("level-name");
+      let levelIndex = 0, playerX = 120, playerY = GROUND - 28, vy = 0, camera = 0, state = "ready";
+      let lastTime = 0, animation = 0, jumpQueued = false, bests = [0,0,0,0];
+      const playerSize = 28, gravity = 1900, jumpPower = 680;
+
+      function currentLevel() { return levels[levelIndex]; }
+      function loadBest() {
+        try {
+          const saved = JSON.parse(localStorage.getItem("neon-run-bests") || "[]");
+          if (Array.isArray(saved)) bests = bests.map((score, i) => Number.isFinite(saved[i]) ? Math.max(0, Math.min(100, saved[i])) : score);
+        } catch { bests = [0,0,0,0]; }
+      }
+      function saveBest() {
+        try { localStorage.setItem("neon-run-bests", JSON.stringify(bests)); } catch {}
+      }
+      function draw() {
+        const level = currentLevel(), color = level.color;
+        const gradient = ctx.createLinearGradient(0,0,0,H);
+        gradient.addColorStop(0,"#111833"); gradient.addColorStop(1,"#1d2443");
+        ctx.fillStyle = gradient; ctx.fillRect(0,0,W,H);
+        ctx.fillStyle = "#ffffff0b";
+        for (let i=0;i<36;i++) {
+          const x = ((i*179 - camera*.12) % W + W) % W;
+          const y = 28 + (i*67 % 260);
+          ctx.fillRect(x,y,2,2);
+        }
+        ctx.strokeStyle = `${color}20`; ctx.lineWidth = 1;
+        for (let x = -camera % 48; x < W; x += 48) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,GROUND); ctx.stroke(); }
+        ctx.fillStyle = "#18213a"; ctx.fillRect(0,GROUND,W,H-GROUND);
+        ctx.strokeStyle = `${color}55`; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0,GROUND); ctx.lineTo(W,GROUND); ctx.stroke();
+        ctx.strokeStyle = `${color}20`;
+        for (let x = -camera % 48; x < W; x += 48) { ctx.beginPath(); ctx.moveTo(x,GROUND); ctx.lineTo(x-25,H); ctx.stroke(); }
+        level.hazards.forEach(([x,type]) => {
+          const sx = x - camera;
+          if (sx < -60 || sx > W+60) return;
+          if (type === "spike") {
+            ctx.fillStyle = "#ff557a"; ctx.shadowColor = "#ff557a"; ctx.shadowBlur = 12;
+            ctx.beginPath(); ctx.moveTo(sx,GROUND); ctx.lineTo(sx+22,GROUND-38); ctx.lineTo(sx+44,GROUND); ctx.closePath(); ctx.fill();
+            ctx.shadowBlur = 0;
+          } else {
+            ctx.fillStyle = "#ffab55"; ctx.shadowColor = "#ffab55"; ctx.shadowBlur = 12;
+            ctx.fillRect(sx,GROUND-34,34,34); ctx.shadowBlur = 0;
+            ctx.strokeStyle = "#ffe0a6"; ctx.strokeRect(sx+5,GROUND-29,24,24);
+          }
+        });
+        const finishX = level.length - camera;
+        if (finishX > -30 && finishX < W+30) {
+          ctx.fillStyle = `${color}28`; ctx.fillRect(finishX-7,GROUND-86,14,86);
+          ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.strokeRect(finishX-19,GROUND-86,38,86);
+          ctx.fillStyle = color; ctx.font = "bold 12px system-ui"; ctx.textAlign = "center"; ctx.fillText("META",finishX,GROUND-98);
+        }
+        if (state !== "ready" || camera === 0) {
+          const px = playerX-camera;
+          ctx.save(); ctx.translate(px+playerSize/2,playerY+playerSize/2);
+          const rotation = playerY < GROUND-playerSize-1 ? Math.min(Math.PI/2,Math.max(-Math.PI/2,(GROUND-playerSize-playerY)*.008)) : 0;
+          ctx.rotate(rotation);
+          ctx.shadowColor = color; ctx.shadowBlur = 18;
+          ctx.fillStyle = color; ctx.fillRect(-playerSize/2,-playerSize/2,playerSize,playerSize);
+          ctx.shadowBlur = 0; ctx.fillStyle = "#111833";
+          ctx.fillRect(-8,-6,5,5); ctx.fillRect(3,-6,5,5);
+          ctx.fillRect(-6,5,12,3);
+          ctx.restore();
+        }
+        if (state === "ready" || state === "dead" || state === "won") {
+          ctx.fillStyle = "#09101bcc"; ctx.fillRect(0,0,W,H);
+          ctx.fillStyle = color; ctx.textAlign = "center"; ctx.font = "bold 34px system-ui";
+          const title = state === "ready" ? `NIVEL ${levelIndex+1}` : state === "won" ? "¡NIVEL SUPERADO!" : "¡UY! INTÉNTALO OTRA VEZ";
+          ctx.fillText(title,W/2,H/2-9);
+          ctx.fillStyle = "#e1e9f4"; ctx.font = "16px system-ui";
+          ctx.fillText(state === "ready" ? "Salta los obstáculos y llega al portal" : state === "won" ? "Elige otro nivel o vuelve a intentarlo" : "Pulsa JUGAR o espacio para reintentar",W/2,H/2+25);
+        }
+      }
+      function setLevel(index) {
+        levelIndex = index; levelSelect.value = String(index);
+        levelName.textContent = `NIVEL ${index+1} · ${currentLevel().name.toLocaleUpperCase("es")}`;
+        bestLabel.textContent = `${bests[index]}%`;
+        reset();
+      }
+      function reset() {
+        cancelAnimationFrame(animation);
+        state = "ready"; camera = 0; playerX = 120; playerY = GROUND-playerSize; vy = 0;
+        progress.style.width = "0%"; action.textContent = "JUGAR";
+        status.textContent = "Pulsa JUGAR o espacio para empezar · Salto: Espacio, ↑ o toque";
+        draw();
+      }
+      function start() {
+        cancelAnimationFrame(animation);
+        state = "playing"; startTime = lastTime = performance.now(); action.textContent = "REINICIAR";
+        status.textContent = "¡Vamos! También puedes saltar tocando el botón.";
+        animation = requestAnimationFrame(loop);
+      }
+      function jump() {
+        if (state === "ready" || state === "dead" || state === "won") { start(); return; }
+        if (state === "playing") jumpQueued = true;
+      }
+      function die() {
+        state = "dead"; action.textContent = "REINTENTAR";
+        status.textContent = "¡Choque! No pasa nada: vuelve a intentarlo.";
+        draw();
+      }
+      function loop(time) {
+        if (state !== "playing") return;
+        const dt = Math.min((time-lastTime)/1000,.035);
+        lastTime = time;
+        if (jumpQueued && playerY >= GROUND-playerSize-1) vy = -jumpPower;
+        jumpQueued = false;
+        vy += gravity*dt;
+        playerY += vy*dt;
+        if (playerY >= GROUND-playerSize) { playerY = GROUND-playerSize; vy = 0; }
+        playerX = Math.min(120 + (time-startTime)*SPEED/1000,currentLevel().length-40);
+        camera = Math.max(0,playerX-240);
+        const center = playerX + playerSize*.5;
+        for (const [x,type] of currentLevel().hazards) {
+          const left = type === "spike" ? x+5 : x;
+          const right = type === "spike" ? x+39 : x+34;
+          const top = type === "spike" ? GROUND-33 : GROUND-34;
+          if (center+playerSize*.35 > left && center-playerSize*.35 < right && playerY+playerSize > top+5) { die(); return; }
+        }
+        const pct = Math.min(100,Math.floor((playerX-120)/(currentLevel().length-120)*100));
+        progress.style.width = `${pct}%`;
+        if (pct > bests[levelIndex]) { bests[levelIndex] = pct; bestLabel.textContent = `${pct}%`; saveBest(); }
+        if (playerX >= currentLevel().length-40) {
+          state = "won"; progress.style.width = "100%"; bests[levelIndex] = 100;
+          bestLabel.textContent = "100%"; saveBest();
+          action.textContent = "JUGAR OTRA VEZ";
+          status.textContent = "¡Nivel completado! Escoge otro circuito para seguir.";
+          draw(); return;
+        }
+        draw(); animation = requestAnimationFrame(loop);
+      }
+      let startTime = 0;
+      action.addEventListener("click", () => state === "playing" ? start() : jump());
+      levelSelect.addEventListener("change", () => setLevel(Number(levelSelect.value)));
+      document.getElementById("jump").addEventListener("pointerdown", event => { event.preventDefault(); jump(); });
+      canvas.addEventListener("pointerdown", event => { event.preventDefault(); jump(); });
+      document.addEventListener("keydown", event => {
+        if ([" ", "ArrowUp", "w", "W"].includes(event.key)) { event.preventDefault(); if (!event.repeat) jump(); }
+        if (event.key === "Escape" && state === "playing") { state = "ready"; reset(); }
+      });
+      loadBest(); setLevel(0);
+    })();
+  </script>
+</body>
+</html>
