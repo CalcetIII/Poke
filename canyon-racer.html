@@ -9,24 +9,28 @@
     .shell{width:min(650px,100%)}.top{display:flex;justify-content:space-between;margin-bottom:10px}a{color:var(--mint);font-weight:800;text-decoration:none}
     .panel{padding:clamp(12px,3vw,23px);border:1px solid #32445c;border-radius:18px;background:linear-gradient(160deg,#1c2a40,#111b2b);box-shadow:0 18px 50px #05091488}
     .head{display:flex;justify-content:space-between;align-items:center;gap:12px}h1{margin:0;font-size:clamp(24px,5vw,36px)}.hint{margin:3px 0;color:var(--muted);font-size:13px}
-    .stats{display:flex;justify-content:space-between;margin:9px 3px;color:var(--muted);font-weight:900}.stats b{color:#ffd166}
+    .stats{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:9px 3px;color:var(--muted);font-weight:900}.stats b{color:#ffd166}
+    .speedometer{display:grid;justify-items:center;min-width:76px;padding:4px 10px;border:1px solid #536275;border-radius:10px;background:#101927}.speedometer b{color:var(--mint);font-size:21px;line-height:1.15}.speedometer small{color:var(--muted);font-size:9px;letter-spacing:.1em}
     canvas{display:block;width:min(100%,500px);height:auto;margin:auto;border:2px solid #52667b;border-radius:10px;background:#111b26;touch-action:none}
     #status{min-height:24px;margin:9px 0;text-align:center;color:#d5dfeb}
     .actions{display:flex;justify-content:center;gap:8px}button{border:0;border-radius:10px;padding:10px 18px;color:#172331;background:linear-gradient(#ffe08c,#ffc34f);box-shadow:0 4px 0 #b47528;font:900 14px "Trebuchet MS",system-ui,sans-serif;cursor:pointer}
-    .touch{display:none;justify-content:space-between;gap:10px;margin-top:12px}.touch button{width:49%;padding:14px;color:var(--ink);background:#293b53;border:1px solid #51637a;box-shadow:none;font-size:20px;touch-action:none}
-    @media(pointer:coarse){.touch{display:flex}}@media(max-width:520px){body{padding:7px}.panel{padding:10px}.head{align-items:flex-start;flex-direction:column}}
+    .touch{display:none;justify-content:space-between;gap:8px;margin-top:12px}.touch-group{display:flex;gap:7px}.touch button{min-width:48px;padding:13px 10px;color:var(--ink);background:#293b53;border:1px solid #51637a;box-shadow:none;font-size:17px;touch-action:none;user-select:none}.touch button.pressed{border-color:var(--mint);background:#31505a}.touch .pedal{font-size:12px;font-weight:900}.touch .accelerate{color:#172331;border:0;background:linear-gradient(#ffe08c,#ffc34f)}
+    @media(pointer:coarse){.touch{display:flex}}@media(max-width:520px){body{padding:7px}.panel{padding:10px}.head{align-items:flex-start;flex-direction:column}.touch{gap:5px}.touch-group{gap:4px}.touch button{min-width:39px;padding:12px 7px;font-size:15px}.touch .pedal{font-size:10px}}
   </style>
 </head>
 <body>
   <main class="shell">
     <nav class="top"><a href="./">← Todos los juegos</a><span>ARCADE CLUB</span></nav>
     <section class="panel">
-      <div class="head"><div><h1>🏎️ Canyon Racer</h1><p class="hint">Esquiva el tráfico, recoge energía y aguanta la velocidad.</p></div><span class="hint">FLECHAS / A-D · ESPACIO: TURBO</span></div>
-      <div class="stats"><span>DISTANCIA <b id="score">0</b> m</span><span>RÉCORD <b id="best">0</b> m</span><span>♥ <b id="lives">3</b></span></div>
+      <div class="head"><div><h1>🏎️ Canyon Racer</h1><p class="hint">Acelera, frena, esquiva el tráfico y recoge energía para el turbo.</p></div><span class="hint">W / ↑ ACELERAR · S / ↓ FRENAR · ESPACIO: TURBO</span></div>
+      <div class="stats"><span>DISTANCIA <b id="score">0</b> m</span><span>RÉCORD <b id="best">0</b> m</span><span class="speedometer"><b id="speed">0</b><small>KM/H</small></span><span>♥ <b id="lives">3</b></span></div>
       <canvas id="game" width="500" height="600" aria-label="Carrera Canyon Racer"></canvas>
-      <p id="status" aria-live="polite">Pulsa JUGAR · recoge ⚡ para cargar el turbo.</p>
+      <p id="status" aria-live="polite">Pulsa JUGAR · W/↑ acelera · S/↓ frena · A/D o ←/→ cambia de carril.</p>
       <div class="actions"><button id="start" type="button">JUGAR</button></div>
-      <div class="touch"><button data-dir="-1" type="button" aria-label="Carril izquierdo">◀</button><button data-dir="1" type="button" aria-label="Carril derecho">▶</button></div>
+      <div class="touch">
+        <div class="touch-group"><button data-dir="-1" type="button" aria-label="Carril izquierdo">◀</button><button data-dir="1" type="button" aria-label="Carril derecho">▶</button></div>
+        <div class="touch-group"><button class="pedal" data-drive="brake" type="button" aria-label="Frenar">FRENO</button><button class="pedal accelerate" data-drive="accelerate" type="button" aria-label="Acelerar">GAS</button></div>
+      </div>
     </section>
   </main>
   <script>
@@ -34,9 +38,10 @@
       "use strict";
       const W=500,H=600,ROAD_LEFT=82,ROAD_RIGHT=418,lanes=[138,250,362];
       const canvas=document.getElementById("game"),ctx=canvas.getContext("2d"),scoreLabel=document.getElementById("score");
-      const bestLabel=document.getElementById("best"),livesLabel=document.getElementById("lives"),status=document.getElementById("status");
-      const startButton=document.getElementById("start"),keys=new Set(),touch=new Set();
-      let lane=1,items=[],score=0,best=0,lives=3,speed=210,spawn=0,lineOffset=0,shield=0,turbo=0,last=0,frame=0,state="ready";
+      const bestLabel=document.getElementById("best"),livesLabel=document.getElementById("lives"),speedLabel=document.getElementById("speed"),status=document.getElementById("status");
+      const startButton=document.getElementById("start"),keys=new Set(),touch=new Set(),pedals=new Set();
+      let lane=1,items=[],score=0,best=0,lives=3,speed=0,spawn=0,lineOffset=0,shield=0,turbo=0,last=0,frame=0,state="ready",laneCooldown=0;
+      const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
       try{best=Number(localStorage.getItem("canyon-racer-best"))||0;}catch{status.textContent="No se pudo cargar el récord guardado.";}
       bestLabel.textContent=String(best);
       const held=key=>keys.has(key)||touch.has(key);
@@ -60,6 +65,7 @@
         });
         drawCar(lanes[lane],H-75,"#78f0bc",true);
         if(turbo>0){ctx.fillStyle="#ffd166";ctx.fillRect(20,H-18,140*turbo,5);}
+        ctx.fillStyle="#dbe4e9";ctx.font="bold 14px system-ui";ctx.textAlign="left";ctx.fillText(`${Math.round(speed)} KM/H`,20,32);
         if(state==="ready"||state==="over"){
           ctx.fillStyle="#07101ccc";ctx.fillRect(0,0,W,H);ctx.textAlign="center";
           ctx.fillStyle="#f5f2df";ctx.font="bold 34px system-ui";ctx.fillText(state==="ready"?"CANYON RACER":"¡CHOQUE!",W/2,H/2-12);
@@ -68,8 +74,8 @@
       }
       function changeLane(direction){lane=Math.max(0,Math.min(2,lane+direction));}
       function start(){
-        cancelAnimationFrame(frame);lane=1;items=[];score=0;lives=3;speed=210;spawn=.5;lineOffset=0;shield=0;turbo=0;state="playing";
-        scoreLabel.textContent="0";livesLabel.textContent="3";startButton.textContent="REINICIAR";status.textContent="¡Acelera! El turbo te protege unos segundos.";
+        cancelAnimationFrame(frame);lane=1;items=[];score=0;lives=3;speed=0;spawn=1.1;lineOffset=0;shield=0;turbo=0;state="playing";laneCooldown=0;
+        scoreLabel.textContent="0";livesLabel.textContent="3";speedLabel.textContent="0";startButton.textContent="REINICIAR";status.textContent="¡Pisa el gas! Frena para reducir el ritmo.";
         last=performance.now();frame=requestAnimationFrame(loop);
       }
       function finish(){
@@ -80,17 +86,25 @@
       function loop(time){
         if(state!=="playing")return;
         const dt=Math.min((time-last)/1000,.035);last=time;
-        speed=Math.min(430,speed+5*dt);score+=Math.floor(speed*dt/8);scoreLabel.textContent=String(score);lineOffset=(lineOffset+speed*dt)%47;
+        const accelerating=keys.has("ArrowUp")||keys.has("KeyW")||pedals.has("accelerate");
+        const braking=keys.has("ArrowDown")||keys.has("KeyS")||pedals.has("brake");
+        if(braking)speed=Math.max(0,speed-185*dt);
+        else if(accelerating)speed=Math.min(turbo>0?360:280,speed+(turbo>0?145:90)*dt);
+        else speed=Math.max(0,speed-18*dt);
+        speedLabel.textContent=String(Math.round(speed));
+        score+=Math.floor(speed*dt/85);scoreLabel.textContent=String(score);
+        const roadSpeed=speed*1.45;lineOffset=(lineOffset+roadSpeed*dt)%47;
         shield=Math.max(0,shield-dt);turbo=Math.max(0,turbo-dt);
-        if(held("ArrowLeft")||held("KeyA")){changeLane(-1);keys.delete("ArrowLeft");keys.delete("KeyA");touch.delete(-1);}
-        if(held("ArrowRight")||held("KeyD")){changeLane(1);keys.delete("ArrowRight");keys.delete("KeyD");touch.delete(1);}
-        spawn-=dt;
+        laneCooldown=Math.max(0,laneCooldown-dt);
+        if(laneCooldown===0&&(held("ArrowLeft")||held("KeyA"))){changeLane(-1);laneCooldown=.18;}
+        if(laneCooldown===0&&(held("ArrowRight")||held("KeyD"))){changeLane(1);laneCooldown=.18;}
+        spawn-=dt*(speed>0?clamp(speed/160,.15,1):0);
         if(spawn<=0){
           const laneIndex=Math.floor(Math.random()*3),energy=Math.random()<.17;
           items.push({lane:laneIndex,x:lanes[laneIndex],y:-35,type:energy?"energy":"car",color:["#ff8196","#ffd166","#a99bff","#73d8ff"][Math.floor(Math.random()*4)]});
           spawn=Math.max(.48,1.05-score/2600)+Math.random()*.35;
         }
-        items.forEach(item=>item.y+=speed*dt);
+        items.forEach(item=>item.y+=roadSpeed*dt);
         items=items.filter(item=>{
           if(item.lane!==lane)return item.y<H+40;
           if(item.type==="energy"&&item.y>H-115&&item.y<H-35){turbo=3.5;score+=60;scoreLabel.textContent=String(score);return false;}
@@ -103,17 +117,21 @@
         draw();if(state==="playing")frame=requestAnimationFrame(loop);
       }
       document.addEventListener("keydown",event=>{
-        if(["ArrowLeft","ArrowRight","Space"].includes(event.code))event.preventDefault();
-        if(event.code==="ArrowLeft"||event.code==="KeyA"){keys.add(event.code);}
-        if(event.code==="ArrowRight"||event.code==="KeyD"){keys.add(event.code);}
+        if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Space"].includes(event.code))event.preventDefault();
+        if(["ArrowLeft","KeyA","ArrowRight","KeyD","ArrowUp","KeyW","ArrowDown","KeyS"].includes(event.code))keys.add(event.code);
         if(event.code==="Space"&&!event.repeat&&state==="playing")turbo=Math.max(turbo,1.2);
       });
       document.addEventListener("keyup",event=>keys.delete(event.code));
-      window.addEventListener("blur",()=>{keys.clear();touch.clear();});
+      window.addEventListener("blur",()=>{keys.clear();touch.clear();pedals.clear();});
       document.querySelectorAll("[data-dir]").forEach(button=>{
         const dir=Number(button.dataset.dir);
-        button.addEventListener("pointerdown",event=>{event.preventDefault();button.setPointerCapture(event.pointerId);touch.add(dir);});
+        button.addEventListener("pointerdown",event=>{event.preventDefault();button.setPointerCapture(event.pointerId);touch.add(dir);changeLane(dir);laneCooldown=.18;});
         for(const type of ["pointerup","pointercancel","lostpointercapture"])button.addEventListener(type,()=>touch.delete(dir));
+      });
+      document.querySelectorAll("[data-drive]").forEach(button=>{
+        const action=button.dataset.drive;
+        button.addEventListener("pointerdown",event=>{event.preventDefault();button.setPointerCapture(event.pointerId);pedals.add(action);button.classList.add("pressed");});
+        for(const type of ["pointerup","pointercancel","lostpointercapture"])button.addEventListener(type,()=>{pedals.delete(action);button.classList.remove("pressed");});
       });
       startButton.addEventListener("click",start);draw();
     })();
