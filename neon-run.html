@@ -27,8 +27,9 @@
     #status { margin:0; min-height:25px; color:#d5dfeb; }
     button { border:0; border-radius:10px; padding:10px 17px; color:#172331; background:linear-gradient(#ffe08c,#ffc34f); box-shadow:0 4px 0 #b47528; font-weight:900; cursor:pointer; }
     button:hover { filter:brightness(1.08); }
+    button:focus-visible, select:focus-visible { outline:3px solid var(--mint); outline-offset:3px; }
     .touch { display:none; margin-top:12px; justify-content:center; }
-    .touch button { width:min(100%,260px); padding:14px; color:var(--ink); background:#293b53; border:1px solid #51637a; box-shadow:none; touch-action:manipulation; }
+    .touch button { width:min(100%,260px); padding:14px; color:var(--ink); background:#293b53; border:1px solid #51637a; box-shadow:none; touch-action:none; user-select:none; }
     @media (pointer:coarse) { .touch { display:flex; } }
     @media (max-width:560px) { body { padding:9px; } .panel { padding:11px; } .heading { align-items:flex-start; flex-direction:column; } select { max-width:100%; width:100%; } .below { align-items:stretch; flex-direction:column; } .below button { width:100%; } }
   </style>
@@ -38,7 +39,7 @@
     <nav class="top"><a href="./">← Todos los juegos</a><span>ARCADE CLUB</span></nav>
     <section class="panel">
       <div class="heading">
-        <div><h1>💠 Neon Run</h1><p class="hint">Salta al ritmo, esquiva trampas y supera cada circuito.</p></div>
+        <div><h1>💠 Neon Run</h1><p class="hint">Mantén el salto para encadenar brincos, esquiva trampas y supera cada circuito.</p></div>
         <select id="level" aria-label="Elegir nivel">
           <option value="0">Nivel 1 · Primer pulso</option>
           <option value="1">Nivel 2 · Doble salto</option>
@@ -49,8 +50,8 @@
       <div class="meta"><span id="level-name">NIVEL 1</span><span>MEJOR: <strong id="best">0%</strong></span></div>
       <div class="track"><div id="progress"></div></div>
       <canvas id="game" width="960" height="420" aria-label="Nivel de plataformas Neon Run"></canvas>
-      <div class="below"><p id="status" aria-live="polite">Pulsa JUGAR o espacio para empezar · Salto: Espacio, ↑ o toque</p><button id="action" type="button">JUGAR</button></div>
-      <div class="touch"><button id="jump" type="button">TOCA PARA SALTAR</button></div>
+      <div class="below"><p id="status" aria-live="polite">Mantén Espacio, ↑ o el botón para saltar automáticamente al aterrizar.</p><button id="action" type="button">JUGAR</button></div>
+      <div class="touch"><button id="jump" type="button">MANTÉN PARA SALTAR</button></div>
     </section>
   </main>
   <script>
@@ -76,8 +77,10 @@
       const status = document.getElementById("status"), progress = document.getElementById("progress");
       const bestLabel = document.getElementById("best"), levelName = document.getElementById("level-name");
       let levelIndex = 0, playerX = 120, playerY = GROUND - 28, vy = 0, camera = 0, state = "ready";
-      let lastTime = 0, animation = 0, jumpQueued = false, bests = [0,0,0,0];
-      const playerSize = 28, gravity = 1900, jumpPower = 680;
+      let lastTime = 0, animation = 0, jumpQueued = false, jumpHeld = false, grounded = true;
+      let rotation = 0, jumpAge = 0, jumpRotationStart = 0, bests = [0,0,0,0];
+      const playerSize = 28, gravity = 1400, jumpPower = 460, autoJumpDistance = 80;
+      const jumpDuration = 2 * jumpPower / gravity;
 
       function currentLevel() { return levels[levelIndex]; }
       function loadBest() {
@@ -128,7 +131,6 @@
         if (state !== "ready" || camera === 0) {
           const px = playerX-camera;
           ctx.save(); ctx.translate(px+playerSize/2,playerY+playerSize/2);
-          const rotation = playerY < GROUND-playerSize-1 ? Math.min(Math.PI/2,Math.max(-Math.PI/2,(GROUND-playerSize-playerY)*.008)) : 0;
           ctx.rotate(rotation);
           ctx.shadowColor = color; ctx.shadowBlur = 18;
           ctx.fillStyle = color; ctx.fillRect(-playerSize/2,-playerSize/2,playerSize,playerSize);
@@ -155,19 +157,40 @@
       function reset() {
         cancelAnimationFrame(animation);
         state = "ready"; camera = 0; playerX = 120; playerY = GROUND-playerSize; vy = 0;
+        rotation = 0; jumpAge = 0; jumpQueued = false; jumpHeld = false; grounded = true;
         progress.style.width = "0%"; action.textContent = "JUGAR";
-        status.textContent = "Pulsa JUGAR o espacio para empezar · Salto: Espacio, ↑ o toque";
+        status.textContent = "Mantén Espacio, ↑ o el botón para saltar automáticamente al aterrizar.";
         draw();
       }
       function start() {
         cancelAnimationFrame(animation);
         state = "playing"; startTime = lastTime = performance.now(); action.textContent = "REINICIAR";
-        status.textContent = "¡Vamos! También puedes saltar tocando el botón.";
+        camera = 0; playerX = 120; playerY = GROUND-playerSize; vy = 0;
+        rotation = 0; jumpAge = 0; jumpQueued = false; jumpHeld = false; grounded = true;
+        progress.style.width = "0%";
+        status.textContent = "¡Vamos! Mantén el salto para rebotar al aterrizar.";
         animation = requestAnimationFrame(loop);
       }
-      function jump() {
-        if (state === "ready" || state === "dead" || state === "won") { start(); return; }
-        if (state === "playing") jumpQueued = true;
+      function pressJump() {
+        if (state !== "playing") {
+          start();
+          jumpHeld = true;
+          return;
+        }
+        jumpHeld = true;
+        jumpQueued = true;
+      }
+      function releaseJump() {
+        jumpHeld = false;
+      }
+      function beginJump() {
+        vy = -jumpPower;
+        grounded = false;
+        jumpAge = 0;
+        jumpRotationStart = rotation;
+      }
+      function obstacleAhead() {
+        return currentLevel().hazards.find(([x,type]) => x + (type === "spike" ? 44 : 34) > playerX);
       }
       function die() {
         state = "dead"; action.textContent = "REINTENTAR";
@@ -178,11 +201,24 @@
         if (state !== "playing") return;
         const dt = Math.min((time-lastTime)/1000,.035);
         lastTime = time;
-        if (jumpQueued && playerY >= GROUND-playerSize-1) vy = -jumpPower;
+        const nextHazard = obstacleAhead();
+        const autoJumpReady = nextHazard && nextHazard[0] - playerX <= autoJumpDistance;
+        if ((jumpQueued || (jumpHeld && autoJumpReady)) && grounded) beginJump();
         jumpQueued = false;
         vy += gravity*dt;
         playerY += vy*dt;
-        if (playerY >= GROUND-playerSize) { playerY = GROUND-playerSize; vy = 0; }
+        if (playerY >= GROUND-playerSize) {
+          playerY = GROUND-playerSize;
+          vy = 0;
+          if (!grounded) {
+            rotation = jumpRotationStart + Math.PI*2;
+            grounded = true;
+          }
+        } else {
+          grounded = false;
+          jumpAge += dt;
+          rotation = jumpRotationStart + Math.PI*2*Math.min(1,jumpAge/jumpDuration);
+        }
         playerX = Math.min(120 + (time-startTime)*SPEED/1000,currentLevel().length-40);
         camera = Math.max(0,playerX-240);
         const center = playerX + playerSize*.5;
@@ -205,14 +241,31 @@
         draw(); animation = requestAnimationFrame(loop);
       }
       let startTime = 0;
-      action.addEventListener("click", () => state === "playing" ? start() : jump());
+      action.addEventListener("click", start);
       levelSelect.addEventListener("change", () => setLevel(Number(levelSelect.value)));
-      document.getElementById("jump").addEventListener("pointerdown", event => { event.preventDefault(); jump(); });
-      canvas.addEventListener("pointerdown", event => { event.preventDefault(); jump(); });
+      function bindJumpHold(element) {
+        element.addEventListener("pointerdown", event => {
+          event.preventDefault();
+          element.setPointerCapture(event.pointerId);
+          pressJump();
+        });
+        for (const type of ["pointerup","pointercancel","lostpointercapture"]) {
+          element.addEventListener(type, releaseJump);
+        }
+      }
+      bindJumpHold(document.getElementById("jump"));
+      bindJumpHold(canvas);
       document.addEventListener("keydown", event => {
-        if ([" ", "ArrowUp", "w", "W"].includes(event.key)) { event.preventDefault(); if (!event.repeat) jump(); }
+        if ([" ", "ArrowUp", "w", "W"].includes(event.key)) {
+          event.preventDefault();
+          if (!event.repeat) pressJump();
+        }
         if (event.key === "Escape" && state === "playing") { state = "ready"; reset(); }
       });
+      document.addEventListener("keyup", event => {
+        if ([" ", "ArrowUp", "w", "W"].includes(event.key)) releaseJump();
+      });
+      window.addEventListener("blur", releaseJump);
       loadBest(); setLevel(0);
     })();
   </script>
