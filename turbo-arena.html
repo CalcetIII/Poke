@@ -19,50 +19,203 @@
     .scoreboard { display:flex; justify-content:center; align-items:center; gap:18px; margin:4px 0 10px; font-size:clamp(23px,6vw,36px); font-weight:900; }
     .blue { color:#77d9ff; } .orange { color:#ffb86e; } .clock { color:#f5f2df; font-size:.65em; }
     canvas { display:block; width:100%; height:auto; border:2px solid #52667b; border-radius:10px; background:#142c35; touch-action:none; }
+    .boost-hud { display:flex; align-items:center; gap:9px; width:min(300px,100%); margin:0 auto 10px; color:#ffd166; font-size:11px; font-weight:900; letter-spacing:.08em; }
+    .boost-track { flex:1; height:9px; overflow:hidden; border:1px solid #536275; border-radius:9px; background:#101927; }
+    #boost-fill { width:100%; height:100%; border-radius:inherit; background:linear-gradient(90deg,#ff9f43,#ffe08c); transition:width .08s linear; }
     #status { min-height:24px; margin:9px 0 10px; color:#d5dfeb; text-align:center; }
     .actions { display:flex; justify-content:center; gap:9px; }
     button { border:0; border-radius:10px; padding:10px 17px; color:#172331; background:linear-gradient(#ffe08c,#ffc34f); box-shadow:0 4px 0 #b47528; font:900 14px "Trebuchet MS",system-ui,sans-serif; cursor:pointer; }
     button:hover { filter:brightness(1.08); }
+    .settings { margin-top:14px; border:1px solid #334760; border-radius:12px; background:#131f32; }
+    .settings summary { padding:12px 14px; color:#e7edf5; font-weight:900; cursor:pointer; }
+    .settings-body { padding:0 14px 14px; }
+    .settings-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .setting { display:flex; flex-direction:column; gap:5px; color:#d7e0e9; font-size:12px; }
+    .setting select { width:100%; padding:8px; color:var(--ink); border:1px solid #435b75; border-radius:8px; background:#17263a; }
+    .setting input[type="range"] { width:100%; accent-color:var(--mint); }
+    .check-setting { display:flex; align-items:center; gap:8px; color:#d7e0e9; font-size:12px; }
+    .check-setting input { accent-color:var(--mint); }
+    .bindings { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; margin-top:12px; }
+    .bindings button { padding:8px 6px; color:var(--ink); background:#293b53; border:1px solid #51637a; box-shadow:none; font-size:11px; }
+    .bindings button.waiting { border-color:var(--mint); color:var(--mint); }
+    .settings-note { margin:8px 0 0; color:var(--muted); font-size:11px; }
     .touch { display:none; justify-content:space-between; gap:10px; margin-top:12px; }
-    .touch-group { display:flex; gap:7px; }
-    .touch button { min-width:54px; padding:12px 9px; color:var(--ink); background:#293b53; border:1px solid #51637a; box-shadow:none; font-size:17px; touch-action:none; user-select:none; }
-    .touch .boost { color:#172331; border:0; background:linear-gradient(#ffe08c,#ffc34f); font-size:12px; }
+    .touch-group { display:flex; flex-wrap:wrap; gap:7px; }
+    .touch button { min-width:48px; padding:12px 9px; color:var(--ink); background:#293b53; border:1px solid #51637a; box-shadow:none; font-size:16px; touch-action:none; user-select:none; }
+    .touch button.pressed { border-color:var(--mint); background:#31505a; }
+    .touch .boost { color:#172331; border:0; background:linear-gradient(#ffe08c,#ffc34f); font-size:11px; }
     @media(pointer:coarse) { .touch { display:flex; } }
-    @media(max-width:600px) { body { padding:8px; } .panel { padding:10px; } .heading { align-items:flex-start; flex-direction:column; } .touch button { min-width:45px; } }
+    @media(max-width:600px) { body { padding:8px; } .panel { padding:10px; } .heading { align-items:flex-start; flex-direction:column; } .touch button { min-width:40px; padding:11px 7px; } .bindings { grid-template-columns:repeat(2,minmax(0,1fr)); } }
   </style>
 </head>
 <body>
   <main class="shell">
     <nav class="top"><a href="./">← Todos los juegos</a><span>ARCADE CLUB</span></nav>
     <section class="panel">
-      <div class="heading"><div><h1>🚗 Turbo Arena</h1><p class="hint">Fútbol de coches: acelera, salta, usa el turbo y marca.</p></div><span class="hint">1 JUGADOR · VS CPU</span></div>
+      <div class="heading"><div><h1>🚗 Turbo Arena</h1><p class="hint">Fútbol de coches: salta, gira en el aire y vuela con el turbo.</p></div><span class="hint">1 JUGADOR · VS CPU</span></div>
       <div class="scoreboard"><span class="blue">AZUL <b id="blue-score">0</b></span><span class="clock" id="clock">90</span><span class="orange"><b id="orange-score">0</b> NARANJA</span></div>
+      <div class="boost-hud"><span>TURBO</span><div class="boost-track"><div id="boost-fill"></div></div><span id="boost-label">100%</span></div>
       <canvas id="arena" width="960" height="500" aria-label="Campo de fútbol de coches"></canvas>
-      <p id="status" aria-live="polite">Pulsa JUGAR · WASD/Flechas para conducir · Espacio para saltar · Shift para turbo</p>
+      <p id="status" aria-live="polite">WASD/flechas: conducir y orientar · Espacio: doble salto · Mayús: turbo y vuelo · Q: giro aéreo</p>
       <div class="actions"><button id="start" type="button">JUGAR</button></div>
+      <details class="settings">
+        <summary>⚙ Ajustes de control</summary>
+        <div class="settings-body">
+          <div class="settings-grid">
+            <label class="setting">Esquema de teclado
+              <select id="layout"><option value="wasd">WASD</option><option value="arrows">Flechas</option></select>
+            </label>
+            <label class="setting">Sensibilidad aérea <span id="sensitivity-label">100%</span>
+              <input id="sensitivity" type="range" min="50" max="160" step="5" value="100">
+            </label>
+            <label class="check-setting"><input id="invert-air" type="checkbox"> Invertir giro aéreo</label>
+            <label class="check-setting"><input id="hold-jump" type="checkbox" checked> Mantener salto para repetirlo</label>
+          </div>
+          <div class="bindings" aria-label="Personalizar teclas">
+            <button type="button" data-bind="steerLeft">Girar izq.</button>
+            <button type="button" data-bind="steerRight">Girar der.</button>
+            <button type="button" data-bind="accelerate">Acelerar</button>
+            <button type="button" data-bind="reverse">Frenar / atrás</button>
+            <button type="button" data-bind="jump">Saltar</button>
+            <button type="button" data-bind="boost">Turbo</button>
+            <button type="button" data-bind="airRoll">Giro aéreo</button>
+            <button type="button" id="reset-controls">Restablecer</button>
+          </div>
+          <p class="settings-note">Pulsa una acción y luego la tecla que quieras asignarle. Los ajustes se guardan en este dispositivo.</p>
+        </div>
+      </details>
       <div class="touch" aria-label="Controles táctiles">
-        <div class="touch-group"><button data-key="ArrowLeft" aria-label="Girar a la izquierda">◀</button><button data-key="ArrowRight" aria-label="Girar a la derecha">▶</button></div>
-        <div class="touch-group"><button data-key="ArrowUp" aria-label="Acelerar">▲</button><button data-key="Space" aria-label="Saltar">⤒</button><button class="boost" data-key="Shift" aria-label="Turbo">TURBO</button></div>
+        <div class="touch-group"><button data-control="steerLeft" aria-label="Girar a la izquierda">◀</button><button data-control="steerRight" aria-label="Girar a la derecha">▶</button></div>
+        <div class="touch-group"><button data-control="accelerate" aria-label="Acelerar">▲</button><button data-control="reverse" aria-label="Frenar o ir atrás">▼</button><button data-control="jump" aria-label="Saltar">⤒</button><button class="boost" data-control="boost" aria-label="Turbo y vuelo">TURBO</button><button data-control="airRoll" aria-label="Giro aéreo">↻</button></div>
       </div>
     </section>
   </main>
   <script>
     (() => {
       "use strict";
-      const W=960,H=500,FLOOR=438,GOAL_TOP=300,GOAL_DEPTH=78,GRAVITY=1050;
+      const W=960,H=500,FLOOR=438,CORNER_RADIUS=105,CORNER_TOP=FLOOR-CORNER_RADIUS;
+      const GOAL_TOP=294,GOAL_DEPTH=100,GRAVITY=900,GOAL_BOTTOM=FLOOR-12;
       const canvas=document.getElementById("arena"),ctx=canvas.getContext("2d");
       const blueScoreLabel=document.getElementById("blue-score"),orangeScoreLabel=document.getElementById("orange-score");
       const clockLabel=document.getElementById("clock"),status=document.getElementById("status"),startButton=document.getElementById("start");
-      const keys=new Set();
-      const player={x:170,y:FLOOR-22,vx:0,vy:0,angle:0,boost:100,grounded:true,color:"#62d6ff",team:"blue",radius:28};
-      const cpu={x:790,y:FLOOR-22,vx:0,vy:0,angle:Math.PI,boost:100,grounded:true,color:"#ffad61",team:"orange",radius:28};
-      const ball={x:W/2,y:FLOOR-16,vx:0,vy:0,r:17};
+      const boostFill=document.getElementById("boost-fill"),boostLabel=document.getElementById("boost-label");
+      const layoutSelect=document.getElementById("layout"),sensitivityInput=document.getElementById("sensitivity");
+      const sensitivityLabel=document.getElementById("sensitivity-label"),invertAirInput=document.getElementById("invert-air");
+      const holdJumpInput=document.getElementById("hold-jump");
+      const keys=new Set(),touchControls=new Set();
+      const layouts={
+        wasd:{steerLeft:"KeyA",steerRight:"KeyD",accelerate:"KeyW",reverse:"KeyS",jump:"Space",boost:"ShiftLeft",airRoll:"KeyQ"},
+        arrows:{steerLeft:"ArrowLeft",steerRight:"ArrowRight",accelerate:"ArrowUp",reverse:"ArrowDown",jump:"Space",boost:"ShiftLeft",airRoll:"KeyQ"}
+      };
+      const controlNames={steerLeft:"Girar izq.",steerRight:"Girar der.",accelerate:"Acelerar",reverse:"Frenar / atrás",jump:"Saltar",boost:"Turbo",airRoll:"Giro aéreo"};
+      let bindings={...layouts.wasd},layout="wasd",sensitivity=1,waitingForBinding=null,jumpPressed=false;
+      const player={x:170,y:FLOOR-22,vx:0,vy:0,angle:0,boost:100,grounded:true,jumps:0,color:"#62d6ff",team:"blue",radius:28,halfWidth:31,halfHeight:22};
+      const cpu={x:790,y:FLOOR-22,vx:0,vy:0,angle:Math.PI,boost:100,grounded:true,jumps:0,color:"#ffad61",team:"orange",radius:28,halfWidth:31,halfHeight:22};
+      const ball={x:W/2,y:FLOOR-16,vx:0,vy:0,r:17,halfWidth:17,halfHeight:17};
       let scores={blue:0,orange:0},timeLeft=90,lastTime=0,frame=0,state="ready",goalPause=0;
       const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
       const length=(x,y)=>Math.hypot(x,y);
+      const hasControl=action=>keys.has(bindings[action])||touchControls.has(action);
+
+      function keyLabel(code) {
+        return ({ArrowLeft:"←",ArrowRight:"→",ArrowUp:"↑",ArrowDown:"↓",Space:"ESPACIO",ShiftLeft:"MAYÚS IZQ.",ShiftRight:"MAYÚS DER."})[code] || code.replace(/^Key/,"").replace(/^Digit/,"");
+      }
+      function renderBindings() {
+        document.querySelectorAll("[data-bind]").forEach(button=>{
+          const action=button.dataset.bind;
+          button.textContent=`${controlNames[action]}: ${keyLabel(bindings[action])}`;
+          button.classList.toggle("waiting",waitingForBinding===action);
+        });
+      }
+      function saveSettings() {
+        try {
+          localStorage.setItem("turbo-arena-settings",JSON.stringify({
+            layout,bindings,sensitivity,invertAir:invertAirInput.checked,holdJump:holdJumpInput.checked
+          }));
+        } catch {
+          status.textContent="No se pudieron guardar los ajustes en este navegador.";
+        }
+      }
+      function loadSettings() {
+        try {
+          const saved=JSON.parse(localStorage.getItem("turbo-arena-settings")||"null");
+          if(!saved||typeof saved!=="object")return;
+          if(saved.layout==="wasd"||saved.layout==="arrows")layout=saved.layout;
+          bindings={...layouts[layout]};
+          if(saved.bindings&&typeof saved.bindings==="object") {
+            const candidate={...bindings};
+            for(const action of Object.keys(controlNames)) {
+              if(typeof saved.bindings[action]==="string"&&saved.bindings[action])candidate[action]=saved.bindings[action];
+            }
+            if(new Set(Object.values(candidate)).size===Object.values(candidate).length)bindings=candidate;
+          }
+          if(Number.isFinite(saved.sensitivity))sensitivity=clamp(saved.sensitivity,.5,1.6);
+          layoutSelect.value=layout;
+          sensitivityInput.value=String(Math.round(sensitivity*100));
+          sensitivityLabel.textContent=`${Math.round(sensitivity*100)}%`;
+          invertAirInput.checked=saved.invertAir===true;
+          holdJumpInput.checked=saved.holdJump!==false;
+        } catch {
+          status.textContent="No se pudieron cargar los ajustes guardados; se usarán los controles predeterminados.";
+        }
+      }
+      function beginRebinding(action) {
+        waitingForBinding=action;
+        renderBindings();
+        status.textContent=`Pulsa una tecla para «${controlNames[action]}» o Escape para cancelar.`;
+      }
+      document.querySelectorAll("[data-bind]").forEach(button=>{
+        button.addEventListener("click",()=>beginRebinding(button.dataset.bind));
+      });
+      document.getElementById("reset-controls").addEventListener("click",()=>{
+        layout=layoutSelect.value;
+        bindings={...layouts[layout]};
+        sensitivity=1;sensitivityInput.value="100";sensitivityLabel.textContent="100%";
+        invertAirInput.checked=false;holdJumpInput.checked=true;waitingForBinding=null;
+        renderBindings();saveSettings();
+        status.textContent="Controles restablecidos.";
+      });
+      layoutSelect.addEventListener("change",()=>{
+        layout=layoutSelect.value;
+        bindings={...layouts[layout]};
+        waitingForBinding=null;renderBindings();saveSettings();
+      });
+      sensitivityInput.addEventListener("input",()=>{
+        sensitivity=Number(sensitivityInput.value)/100;
+        sensitivityLabel.textContent=`${sensitivityInput.value}%`;saveSettings();
+      });
+      invertAirInput.addEventListener("change",saveSettings);
+      holdJumpInput.addEventListener("change",saveSettings);
+
+      function surfaceY(x) {
+        const left=clamp(x,0,W);
+        if(left<CORNER_RADIUS) {
+          const offset=CORNER_RADIUS-left;
+          return CORNER_TOP+Math.sqrt(Math.max(0,CORNER_RADIUS*CORNER_RADIUS-offset*offset));
+        }
+        if(left>W-CORNER_RADIUS) {
+          const offset=left-(W-CORNER_RADIUS);
+          return CORNER_TOP+Math.sqrt(Math.max(0,CORNER_RADIUS*CORNER_RADIUS-offset*offset));
+        }
+        return FLOOR;
+      }
+      function bodyFloorY(body) {
+        if(body===ball&&body.x<GOAL_DEPTH&&body.y>GOAL_TOP&&body.y<GOAL_BOTTOM)return GOAL_BOTTOM-body.halfHeight;
+        if(body===ball&&body.x>W-GOAL_DEPTH&&body.y>GOAL_TOP&&body.y<GOAL_BOTTOM)return GOAL_BOTTOM-body.halfHeight;
+        const sampleX=body.x<W/2?body.x-body.halfWidth:body.x+body.halfWidth;
+        return surfaceY(sampleX)-body.halfHeight;
+      }
+      function approachAngle(current,target,maxStep) {
+        const difference=Math.atan2(Math.sin(target-current),Math.cos(target-current));
+        return current+clamp(difference,-maxStep,maxStep);
+      }
 
       function drawCar(car) {
         ctx.save();ctx.translate(car.x,car.y);ctx.rotate(car.angle);
+        if(car===player&&hasControl("boost")&&car.boost>0) {
+          ctx.fillStyle="#ffbd5b";ctx.shadowColor="#ff8b38";ctx.shadowBlur=15;
+          ctx.beginPath();ctx.moveTo(-29,-8);ctx.lineTo(-45,0);ctx.lineTo(-29,8);ctx.closePath();ctx.fill();
+        }
         ctx.shadowColor=car.color;ctx.shadowBlur=14;
         ctx.fillStyle=car.color;ctx.beginPath();ctx.roundRect(-31,-14,62,28,8);ctx.fill();
         ctx.shadowBlur=0;ctx.fillStyle="#132238";ctx.beginPath();ctx.roundRect(-7,-12,22,14,5);ctx.fill();
@@ -86,16 +239,30 @@
         ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
         ctx.fillStyle="#ffffff0a";
         for(let i=0;i<32;i++){const x=(i*127)%W,y=35+(i*61)%235;ctx.fillRect(x,y,2,2);}
-        ctx.fillStyle="#255044";ctx.fillRect(0,FLOOR,W,H-FLOOR);
-        ctx.fillStyle="#2e6652";
+        ctx.beginPath();ctx.moveTo(0,CORNER_TOP);ctx.arc(CORNER_RADIUS,CORNER_TOP,CORNER_RADIUS,Math.PI,Math.PI/2,true);
+        ctx.lineTo(W-CORNER_RADIUS,FLOOR);ctx.arc(W-CORNER_RADIUS,CORNER_TOP,CORNER_RADIUS,Math.PI/2,0,true);
+        ctx.lineTo(W,H);ctx.lineTo(0,H);ctx.closePath();
+        ctx.fillStyle="#255044";ctx.fill();
+        ctx.save();ctx.clip();ctx.fillStyle="#2e6652";
         for(let i=0;i<12;i++)if(i%2===0)ctx.fillRect(i*80,FLOOR,80,H-FLOOR);
-        ctx.strokeStyle="#b9f4d65c";ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(0,FLOOR);ctx.lineTo(W,FLOOR);ctx.stroke();
-        ctx.setLineDash([12,12]);ctx.strokeStyle="#e5f4dd55";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(W/2,FLOOR);ctx.lineTo(W/2,H);ctx.stroke();ctx.setLineDash([]);
+        ctx.restore();
+        ctx.strokeStyle="#b9f4d65c";ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(0,CORNER_TOP);
+        ctx.arc(CORNER_RADIUS,CORNER_TOP,CORNER_RADIUS,Math.PI,Math.PI/2,true);
+        ctx.lineTo(W-CORNER_RADIUS,FLOOR);ctx.arc(W-CORNER_RADIUS,CORNER_TOP,CORNER_RADIUS,Math.PI/2,0,true);
+        ctx.lineTo(W,CORNER_TOP);ctx.stroke();
+        ctx.strokeStyle="#c5e0d233";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,CORNER_TOP);ctx.moveTo(W,0);ctx.lineTo(W,CORNER_TOP);ctx.stroke();
+        ctx.setLineDash([12,12]);ctx.strokeStyle="#e5f4dd55";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(W/2,0);ctx.lineTo(W/2,FLOOR);ctx.stroke();ctx.setLineDash([]);
         ctx.beginPath();ctx.arc(W/2,FLOOR,62,Math.PI,0);ctx.stroke();
-        ctx.fillStyle="#172e39";ctx.fillRect(0,GOAL_TOP,GOAL_DEPTH,FLOOR-GOAL_TOP);
-        ctx.fillRect(W-GOAL_DEPTH,GOAL_TOP,GOAL_DEPTH,FLOOR-GOAL_TOP);
-        ctx.strokeStyle="#77d9ff";ctx.lineWidth=6;ctx.strokeRect(0,GOAL_TOP,GOAL_DEPTH,FLOOR-GOAL_TOP);
-        ctx.strokeStyle="#ffb86e";ctx.strokeRect(W-GOAL_DEPTH,GOAL_TOP,GOAL_DEPTH,FLOOR-GOAL_TOP);
+        ctx.fillStyle="#142a37";ctx.fillRect(0,GOAL_TOP,GOAL_DEPTH,GOAL_BOTTOM-GOAL_TOP);
+        ctx.fillRect(W-GOAL_DEPTH,GOAL_TOP,GOAL_DEPTH,GOAL_BOTTOM-GOAL_TOP);
+        ctx.strokeStyle="#ffffff22";ctx.lineWidth=1;
+        for(let x=14;x<GOAL_DEPTH;x+=18){ctx.beginPath();ctx.moveTo(x,GOAL_TOP+5);ctx.lineTo(x,GOAL_BOTTOM-5);ctx.stroke();}
+        for(let y=GOAL_TOP+18;y<GOAL_BOTTOM;y+=18){
+          ctx.beginPath();ctx.moveTo(4,y);ctx.lineTo(GOAL_DEPTH-4,y);ctx.stroke();
+          ctx.beginPath();ctx.moveTo(W-GOAL_DEPTH+4,y);ctx.lineTo(W-4,y);ctx.stroke();
+        }
+        ctx.strokeStyle="#77d9ff";ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(GOAL_DEPTH,GOAL_TOP);ctx.lineTo(GOAL_DEPTH,GOAL_BOTTOM);ctx.lineTo(0,GOAL_BOTTOM);ctx.moveTo(0,GOAL_TOP);ctx.lineTo(GOAL_DEPTH,GOAL_TOP);ctx.stroke();
+        ctx.strokeStyle="#ffb86e";ctx.beginPath();ctx.moveTo(W-GOAL_DEPTH,GOAL_TOP);ctx.lineTo(W-GOAL_DEPTH,GOAL_BOTTOM);ctx.lineTo(W,GOAL_BOTTOM);ctx.moveTo(W,GOAL_TOP);ctx.lineTo(W-GOAL_DEPTH,GOAL_TOP);ctx.stroke();
         ctx.fillStyle="#ffffff22";ctx.beginPath();ctx.arc(W/2,FLOOR-1,4,0,Math.PI*2);ctx.fill();
         drawCar(player);drawCar(cpu);
         ctx.save();ctx.translate(ball.x,ball.y);
@@ -105,6 +272,8 @@
         ctx.beginPath();ctx.arc(0,0,ball.r*.56,0,Math.PI*2);ctx.stroke();
         ctx.beginPath();ctx.moveTo(-ball.r*.8,0);ctx.lineTo(ball.r*.8,0);ctx.moveTo(0,-ball.r*.8);ctx.lineTo(0,ball.r*.8);ctx.stroke();
         ctx.restore();
+        boostFill.style.width=`${player.boost}%`;
+        boostLabel.textContent=`${Math.round(player.boost)}%`;
         if(state==="ready"||state==="over") {
           ctx.fillStyle="#09101dbb";ctx.fillRect(0,0,W,H);
           ctx.textAlign="center";ctx.fillStyle="#f5f2df";ctx.font="bold 36px system-ui";
@@ -115,13 +284,14 @@
       }
 
       function resetPositions(direction=1) {
-        player.x=170;player.y=FLOOR-22;player.vx=0;player.vy=0;player.angle=0;player.grounded=true;
-        cpu.x=790;cpu.y=FLOOR-22;cpu.vx=0;cpu.vy=0;cpu.angle=Math.PI;cpu.grounded=true;
+        player.x=170;player.y=FLOOR-22;player.vx=0;player.vy=0;player.angle=0;player.grounded=true;player.jumps=0;
+        cpu.x=790;cpu.y=FLOOR-22;cpu.vx=0;cpu.vy=0;cpu.angle=Math.PI;cpu.grounded=true;cpu.jumps=0;
         ball.x=W/2;ball.y=FLOOR-17;ball.vx=direction*95;ball.vy=-70;
         goalPause=.9;
       }
       function begin() {
         cancelAnimationFrame(frame);scores={blue:0,orange:0};timeLeft=90;state="playing";
+        keys.clear();touchControls.clear();jumpPressed=false;
         blueScoreLabel.textContent="0";orangeScoreLabel.textContent="0";clockLabel.textContent="90";
         startButton.textContent="REINICIAR";status.textContent="¡A por el balón!";
         player.boost=100;cpu.boost=100;resetPositions(Math.random()<.5?-1:1);
@@ -134,40 +304,78 @@
         resetPositions(team==="blue"?-1:1);
       }
       function moveCar(car,dt,isCpu=false) {
-        if(car.grounded) {
-          if(!isCpu) {
-            if(keys.has("arrowleft")||keys.has("a"))car.angle-=2.7*dt;
-            if(keys.has("arrowright")||keys.has("d"))car.angle+=2.7*dt;
-          } else {
-            const target=Math.atan2(ball.y-car.y,ball.x-car.x);
-            let diff=Math.atan2(Math.sin(target-car.angle),Math.cos(target-car.angle));
-            car.angle+=clamp(diff,-2.1*dt,2.1*dt);
-          }
+        const steering=isCpu?0:(Number(hasControl("steerRight"))-Number(hasControl("steerLeft")))*(invertAirInput.checked&&!car.grounded?-1:1);
+        if(isCpu) {
+          const target=Math.atan2(ball.y-car.y,ball.x-car.x);
+          car.angle=approachAngle(car.angle,target,2.1*dt);
+        } else if(car.grounded) {
+          car.angle+=steering*2.7*dt;
+        } else {
+          car.angle+=steering*3.2*dt*sensitivity;
+          if(hasControl("airRoll"))car.angle+=(hasControl("steerLeft")?-1:1)*5.2*dt;
         }
-        const boostPressed=!isCpu&&keys.has("shift");
-        const reverse=!isCpu&&(keys.has("arrowdown")||keys.has("s"));
-        const wantsDrive=isCpu?Math.abs(ball.x-car.x)>48:(keys.has("arrowup")||keys.has("w")||reverse);
+        const boostPressed=!isCpu&&hasControl("boost")&&car.boost>0;
+        const reverse=!isCpu&&hasControl("reverse");
+        const wantsDrive=isCpu?Math.abs(ball.x-car.x)>48:(hasControl("accelerate")||reverse||boostPressed);
         if(wantsDrive) {
-          let thrust=isCpu?600:490;
-          if(boostPressed&&car.boost>0){thrust=900;car.boost=Math.max(0,car.boost-35*dt);}
-          else if(!isCpu)car.boost=Math.min(100,car.boost+13*dt);
+          let thrust=isCpu?600:(car.grounded?490:300);
+          if(boostPressed) {
+            thrust=car.grounded?920:1450;
+            car.boost=Math.max(0,car.boost-38*dt);
+          } else if(!isCpu)car.boost=Math.min(100,car.boost+(car.grounded?22:7)*dt);
           const driveDirection=reverse?-1:1;
           car.vx+=Math.cos(car.angle)*thrust*dt*driveDirection;
           car.vy+=Math.sin(car.angle)*thrust*dt*driveDirection;
-        } else if(!isCpu) car.boost=Math.min(100,car.boost+20*dt);
-        const jumpKey=keys.has(" ");
-        if(!isCpu&&jumpKey&&car.grounded){car.vy=-440;car.grounded=false;}
-        if(isCpu&&car.grounded&&Math.abs(ball.x-car.x)<185&&ball.y<car.y-25&&Math.random()<dt*1.6){car.vy=-390;car.grounded=false;}
+        } else if(!isCpu)car.boost=Math.min(100,car.boost+(car.grounded?22:7)*dt);
+        const wantsJump=!isCpu&&(jumpPressed||(holdJumpInput.checked&&hasControl("jump")));
+        if(wantsJump) {
+          if(car.grounded) {
+            car.vy=-470;car.grounded=false;car.jumps=1;
+          } else if(car.jumps<2) {
+            car.vy=-380;
+            car.vx+=Math.cos(car.angle)*180;
+            car.vy+=Math.sin(car.angle)*180;
+            car.jumps=2;
+          }
+        }
+        if(isCpu&&car.grounded&&Math.abs(ball.x-car.x)<185&&ball.y<car.y-25&&Math.random()<dt*1.6){car.vy=-390;car.grounded=false;car.jumps=1;}
         if(isCpu&&ball.x<car.x-45&&car.grounded)car.vx-=240*dt;
-        car.vx*=Math.pow(car.grounded?.985:.995,dt*60);
+        car.grounded=false;
+        car.vx*=Math.pow(.992,dt*60);
+        car.vy*=Math.pow(.999,dt*60);
         car.vy+=GRAVITY*dt;
         car.x+=car.vx*dt;car.y+=car.vy*dt;
-        if(car.y>=FLOOR-22){car.y=FLOOR-22;car.vy=0;car.grounded=true;}
-        if(car.y<35){car.y=35;car.vy=Math.abs(car.vy)*.45;}
-        car.x=clamp(car.x,34,W-34);
-        if(car.x<GOAL_DEPTH+15&&car.y>GOAL_TOP&&car.y<FLOOR-4)car.x=GOAL_DEPTH+15;
-        if(car.x>W-GOAL_DEPTH-15&&car.y>GOAL_TOP&&car.y<FLOOR-4)car.x=W-GOAL_DEPTH-15;
-        const maxSpeed=boostPressed?660:460, speed=length(car.vx,car.vy);
+        car.x=clamp(car.x,car.halfWidth,W-car.halfWidth);
+        if(car.y<car.halfHeight+4){car.y=car.halfHeight+4;car.vy=Math.abs(car.vy)*.45;}
+        const floorY=bodyFloorY(car);
+        if(car.y>=floorY) {
+          car.y=floorY;
+          if(car.vy>0)car.vy=0;
+          car.grounded=true;car.jumps=0;
+          const sampleX=car.x<W/2?car.x-car.halfWidth:car.x+car.halfWidth;
+          const onLeftCurve=sampleX<CORNER_RADIUS,onRightCurve=sampleX>W-CORNER_RADIUS;
+          if((onLeftCurve||onRightCurve)&&!steering) {
+            const center=onLeftCurve?CORNER_RADIUS:W-CORNER_RADIUS;
+            const dx=sampleX-center,dy=Math.sqrt(Math.max(1,CORNER_RADIUS*CORNER_RADIUS-dx*dx));
+            const slope=-dx/dy;
+            const movingRight=car.vx>=0;
+            const tangent=onLeftCurve
+              ?(movingRight?Math.atan(slope):Math.atan2(-slope,-1))
+              :(movingRight?Math.atan2(slope,1):Math.atan2(-slope,-1));
+            car.angle=approachAngle(car.angle,tangent,4*dt);
+          }
+        }
+        if(car.x<=car.halfWidth&&car.y<=CORNER_TOP-car.halfHeight) {
+          car.x=car.halfWidth;if(car.vx<0)car.vx=0;
+          car.grounded=true;car.jumps=0;
+          if(!steering)car.angle=approachAngle(car.angle,-Math.PI/2,5*dt);
+        }
+        if(car.x>=W-car.halfWidth&&car.y<=CORNER_TOP-car.halfHeight) {
+          car.x=W-car.halfWidth;if(car.vx>0)car.vx=0;
+          car.grounded=true;car.jumps=0;
+          if(!steering)car.angle=approachAngle(car.angle,-Math.PI/2,5*dt);
+        }
+        const maxSpeed=boostPressed?700:480, speed=length(car.vx,car.vy);
         if(speed>maxSpeed){car.vx=car.vx/speed*maxSpeed;car.vy=car.vy/speed*maxSpeed;}
       }
       function collideCarBall(car) {
@@ -186,38 +394,72 @@
         ball.vy+=GRAVITY*.8*dt;ball.x+=ball.vx*dt;ball.y+=ball.vy*dt;
         ball.vx*=Math.pow(.998,dt*60);
         if(ball.y-ball.r<15){ball.y=15+ball.r;ball.vy=Math.abs(ball.vy)*.82;}
-        if(ball.y+ball.r>FLOOR){ball.y=FLOOR-ball.r;ball.vy=-Math.abs(ball.vy)*.72;if(Math.abs(ball.vy)<30)ball.vy=0;}
-        if(ball.x-ball.r<0&&!(ball.y>GOAL_TOP+ball.r&&ball.y<FLOOR-ball.r)){ball.x=ball.r;ball.vx=Math.abs(ball.vx)*.75;}
-        if(ball.x+ball.r>W&&!(ball.y>GOAL_TOP+ball.r&&ball.y<FLOOR-ball.r)){ball.x=W-ball.r;ball.vx=-Math.abs(ball.vx)*.75;}
-        if(ball.y>GOAL_TOP+ball.r&&ball.y<FLOOR-ball.r) {
-          if(ball.x<GOAL_DEPTH+ball.r&&ball.vx<0){ball.x=GOAL_DEPTH+ball.r;ball.vx=Math.abs(ball.vx)*.68;}
-          if(ball.x>W-GOAL_DEPTH-ball.r&&ball.vx>0){ball.x=W-GOAL_DEPTH-ball.r;ball.vx=-Math.abs(ball.vx)*.68;}
+        const floorY=bodyFloorY(ball);
+        if(ball.y>floorY){ball.y=floorY;ball.vy=-Math.abs(ball.vy)*.72;if(Math.abs(ball.vy)<30)ball.vy=0;}
+        if((ball.x<GOAL_DEPTH||ball.x>W-GOAL_DEPTH)&&ball.y-ball.r<GOAL_TOP) {
+          ball.y=GOAL_TOP+ball.r;ball.vy=Math.abs(ball.vy)*.8;
         }
-        if(ball.x<-ball.r)goal("orange");
-        else if(ball.x>W+ball.r)goal("blue");
+        const inLeftGoal=ball.y>GOAL_TOP+ball.r&&ball.y<GOAL_BOTTOM-ball.r;
+        const inRightGoal=inLeftGoal;
+        if(ball.x<ball.r&&!inLeftGoal){ball.x=ball.r;ball.vx=Math.abs(ball.vx)*.75;}
+        if(ball.x>W-ball.r&&!inRightGoal){ball.x=W-ball.r;ball.vx=-Math.abs(ball.vx)*.75;}
+        if(ball.x<ball.r&&inLeftGoal)goal("orange");
+        else if(ball.x>W-ball.r&&inRightGoal)goal("blue");
       }
       function loop(time) {
         if(state!=="playing")return;
         const dt=Math.min((time-lastTime)/1000,.025);lastTime=time;
         timeLeft=Math.max(0,timeLeft-dt);clockLabel.textContent=String(Math.ceil(timeLeft));
         if(timeLeft<=0){state="over";startButton.textContent="JUGAR OTRA VEZ";status.textContent=scores.blue===scores.orange?"¡Se acabó! Empate.":scores.blue>scores.orange?"¡Se acabó! Ganaste el partido.":"¡Se acabó! La CPU se lleva el partido.";draw();return;}
-        moveCar(player,dt);moveCar(cpu,dt,true);
+        moveCar(player,dt);jumpPressed=false;moveCar(cpu,dt,true);
         if(goalPause>0)goalPause=Math.max(0,goalPause-dt);
         else {updateBall(dt);collideCarBall(player);collideCarBall(cpu);}
         draw();frame=requestAnimationFrame(loop);
       }
       document.addEventListener("keydown",event=>{
-        const key=event.key===" "?" ":event.key.toLowerCase();
-        if(["arrowleft","arrowright","arrowup","arrowdown"," ","shift"].includes(key)){event.preventDefault();keys.add(key);}
+        if(waitingForBinding) {
+          event.preventDefault();
+          if(event.code==="Escape") {
+            waitingForBinding=null;renderBindings();status.textContent="Asignación cancelada.";
+            return;
+          }
+          if(["Tab","ControlLeft","ControlRight","AltLeft","AltRight","MetaLeft","MetaRight"].includes(event.code)) {
+            status.textContent="Elige una tecla normal, no una tecla modificadora.";
+            return;
+          }
+          const duplicate=Object.entries(bindings).find(([action,code])=>action!==waitingForBinding&&code===event.code);
+          if(duplicate) {
+            status.textContent=`Esa tecla ya está asignada a «${controlNames[duplicate[0]]}».`;
+            return;
+          }
+          bindings[waitingForBinding]=event.code;
+          waitingForBinding=null;renderBindings();saveSettings();
+          status.textContent="Control actualizado.";
+          return;
+        }
+        if(["INPUT","SELECT","TEXTAREA"].includes(event.target?.tagName))return;
+        const action=Object.keys(bindings).find(name=>bindings[name]===event.code);
+        if(action) {
+          event.preventDefault();
+          if(action==="jump"&&!keys.has(event.code))jumpPressed=true;
+          keys.add(event.code);
+        }
       });
-      document.addEventListener("keyup",event=>keys.delete(event.key===" "?" ":event.key.toLowerCase()));
-      window.addEventListener("blur",()=>keys.clear());
-      document.querySelectorAll("[data-key]").forEach(button=>{
-        const key=button.dataset.key==="Space"?" ":button.dataset.key.toLowerCase();
-        button.addEventListener("pointerdown",event=>{event.preventDefault();keys.add(key);button.setPointerCapture(event.pointerId);});
-        for(const type of ["pointerup","pointercancel","lostpointercapture"])button.addEventListener(type,()=>keys.delete(key));
+      document.addEventListener("keyup",event=>keys.delete(event.code));
+      window.addEventListener("blur",()=>{keys.clear();touchControls.clear();jumpPressed=false;});
+      document.querySelectorAll("[data-control]").forEach(button=>{
+        const action=button.dataset.control;
+        button.addEventListener("pointerdown",event=>{
+          event.preventDefault();button.setPointerCapture(event.pointerId);
+          if(action==="jump"&&!touchControls.has(action))jumpPressed=true;
+          touchControls.add(action);button.classList.add("pressed");
+        });
+        for(const type of ["pointerup","pointercancel","lostpointercapture"])button.addEventListener(type,()=>{
+          touchControls.delete(action);button.classList.remove("pressed");
+        });
       });
       startButton.addEventListener("click",begin);
+      loadSettings();renderBindings();
       resetPositions(1);goalPause=0;draw();
     })();
   </script>
