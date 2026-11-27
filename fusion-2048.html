@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#101829">
+  <title>Fusion 2048 — Arcade Club</title>
+  <style>
+    :root{color-scheme:dark;--ink:#f5f2df;--muted:#a7b3c2;--mint:#78f0bc}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:14px;color:var(--ink);font:15px/1.5 "Trebuchet MS",system-ui,sans-serif;background:radial-gradient(ellipse at 50% 0%,#263c58 0,#111a2b 55%,#0b1120 100%)}
+    .shell{width:min(540px,100%)}.top{display:flex;justify-content:space-between;margin-bottom:12px}a{color:var(--mint);font-weight:800;text-decoration:none}
+    .panel{padding:clamp(14px,4vw,27px);border:1px solid #32445c;border-radius:18px;background:linear-gradient(160deg,#1c2a40,#111b2b);box-shadow:0 18px 50px #05091488}
+    .head{display:flex;justify-content:space-between;align-items:center;gap:12px}h1{margin:0;font-size:clamp(24px,5vw,36px)}.hint{margin:3px 0;color:var(--muted);font-size:13px}
+    .scores{display:flex;gap:8px}.score{min-width:76px;padding:6px 10px;border:1px solid #41566f;border-radius:9px;background:#131f32;text-align:center;color:var(--muted);font-size:10px;font-weight:900}.score b{display:block;color:#ffd166;font-size:18px}
+    .board{position:relative;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:9px;border:1px solid #465d78;border-radius:12px;background:#101827;touch-action:none;user-select:none}
+    .cell{display:grid;place-items:center;aspect-ratio:1;border-radius:8px;background:#1a293c;font-size:clamp(20px,7vw,34px);font-weight:900}
+    .tile-2{background:#d9e3da;color:#273344}.tile-4{background:#b8d9cb;color:#273344}.tile-8{background:#ffd166;color:#342b25}.tile-16{background:#ffb36b;color:#34251f}.tile-32{background:#ff8b76;color:#fff}.tile-64{background:#ff668a;color:#fff}.tile-high{background:#9e8cff;color:#fff}
+    #status{min-height:25px;margin:10px 0;text-align:center;color:#d5dfeb}
+    .actions{display:flex;justify-content:center;flex-wrap:wrap;gap:8px}button{border:0;border-radius:10px;padding:10px 15px;color:#172331;background:linear-gradient(#ffe08c,#ffc34f);box-shadow:0 4px 0 #b47528;font:900 13px "Trebuchet MS",system-ui,sans-serif;cursor:pointer}
+    button.secondary{color:var(--ink);background:#293b53;border:1px solid #51637a;box-shadow:none}
+    @media(max-width:440px){body{padding:8px}.panel{padding:12px}.head{align-items:flex-start;flex-direction:column}.board{gap:5px;padding:6px}.cell{border-radius:5px}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <nav class="top"><a href="./">← Todos los juegos</a><span>ARCADE CLUB</span></nav>
+    <section class="panel">
+      <div class="head"><div><h1>🔢 Fusion 2048</h1><p class="hint">Une los números. ¿Llegarás hasta 2048?</p></div><div class="scores"><div class="score">PUNTOS<b id="score">0</b></div><div class="score">RÉCORD<b id="best">0</b></div></div></div>
+      <div id="board" class="board" role="grid" aria-label="Tablero Fusion 2048"></div>
+      <p id="status" aria-live="polite">Desliza o usa las flechas / WASD para mover las fichas.</p>
+      <div class="actions"><button id="new" type="button">NUEVA PARTIDA</button><button id="undo" class="secondary" type="button">DESHACER</button><button id="continue" class="secondary" type="button" hidden>SEGUIR</button></div>
+    </section>
+  </main>
+  <script>
+    (() => {
+      "use strict";
+      const boardElement=document.getElementById("board"),scoreLabel=document.getElementById("score"),bestLabel=document.getElementById("best"),status=document.getElementById("status");
+      let grid,score=0,best=0,undoState=null,won=false,keepPlaying=false,over=false,touchStart=null;
+      try{best=Number(localStorage.getItem("fusion-2048-best"))||0;}catch{status.textContent="El récord no se pudo cargar, pero la partida funcionará normalmente.";}
+      bestLabel.textContent=String(best);
+      function clone(matrix){return matrix.map(row=>row.slice());}
+      function spawn(){
+        const empty=[];grid.forEach((row,r)=>row.forEach((value,c)=>{if(!value)empty.push([r,c]);}));
+        if(!empty.length)return;
+        const [r,c]=empty[Math.floor(Math.random()*empty.length)];grid[r][c]=Math.random()<.9?2:4;
+      }
+      function render(){
+        boardElement.replaceChildren();
+        grid.forEach((row,r)=>row.forEach((value,c)=>{
+          const cell=document.createElement("div");cell.className=`cell${value?` tile-${value<=64?value:"high"}`:""}`;
+          cell.textContent=value?String(value):"";cell.setAttribute("role","gridcell");
+          cell.setAttribute("aria-label",value?String(value):"Vacío");boardElement.appendChild(cell);
+        }));
+        scoreLabel.textContent=String(score);bestLabel.textContent=String(best);
+        document.getElementById("undo").disabled=!undoState;
+        document.getElementById("continue").hidden=!won||keepPlaying;
+      }
+      function hasMoves(){
+        for(let r=0;r<4;r++)for(let c=0;c<4;c++){
+          if(!grid[r][c])return true;
+          if(c<3&&grid[r][c]===grid[r][c+1])return true;
+          if(r<3&&grid[r][c]===grid[r+1][c])return true;
+        }
+        return false;
+      }
+      function move(direction){
+        if(over||(won&&!keepPlaying))return;
+        const before=clone(grid),oldScore=score;
+        for(let line=0;line<4;line++){
+          const coords=[];
+          for(let offset=0;offset<4;offset++){
+            let r,c;
+            if(direction==="left"){r=line;c=offset;}
+            else if(direction==="right"){r=line;c=3-offset;}
+            else if(direction==="up"){r=offset;c=line;}
+            else{r=3-offset;c=line;}
+            coords.push([r,c]);
+          }
+          const values=coords.map(([r,c])=>grid[r][c]).filter(Boolean),merged=[];
+          for(let i=0;i<values.length;i++){
+            if(values[i]===values[i+1]){const value=values[i]*2;merged.push(value);score+=value;i++;}
+            else merged.push(values[i]);
+          }
+          while(merged.length<4)merged.push(0);
+          coords.forEach(([r,c],i)=>grid[r][c]=merged[i]);
+        }
+        if(grid.every((row,r)=>row.every((value,c)=>value===before[r][c])))return;
+        undoState={grid:before,score:oldScore,won,keepPlaying};spawn();
+        if(score>best){best=score;try{localStorage.setItem("fusion-2048-best",String(best));}catch{status.textContent="Partida guardada; el récord no se pudo almacenar."}}
+        if(!won&&grid.some(row=>row.includes(2048))){won=true;status.textContent="¡2048! Puedes seguir jugando o empezar otra partida.";}
+        else if(!hasMoves()){over=true;status.textContent="No quedan movimientos. ¡Prueba otra vez!";}
+        else if(!won||keepPlaying)status.textContent="Sigue combinando fichas.";
+        render();
+      }
+      function newGame(){
+        grid=Array.from({length:4},()=>Array(4).fill(0));score=0;undoState=null;won=false;keepPlaying=false;over=false;
+        document.getElementById("continue").hidden=true;spawn();spawn();status.textContent="Desliza o usa las flechas / WASD para mover las fichas.";render();
+      }
+      document.addEventListener("keydown",event=>{
+        const map={ArrowLeft:"left",a:"left",ArrowRight:"right",d:"right",ArrowUp:"up",w:"up",ArrowDown:"down",s:"down"};
+        const direction=map[event.key.length===1?event.key.toLowerCase():event.key];
+        if(direction){event.preventDefault();move(direction);}
+      });
+      boardElement.addEventListener("pointerdown",event=>{touchStart={x:event.clientX,y:event.clientY};});
+      boardElement.addEventListener("pointerup",event=>{
+        if(!touchStart)return;
+        const dx=event.clientX-touchStart.x,dy=event.clientY-touchStart.y;touchStart=null;
+        if(Math.max(Math.abs(dx),Math.abs(dy))<24)return;
+        move(Math.abs(dx)>Math.abs(dy)?(dx<0?"left":"right"):(dy<0?"up":"down"));
+      });
+      document.getElementById("new").addEventListener("click",newGame);
+      document.getElementById("undo").addEventListener("click",()=>{
+        if(!undoState)return;
+        grid=undoState.grid;score=undoState.score;won=undoState.won;keepPlaying=undoState.keepPlaying;undoState=null;over=false;status.textContent="Movimiento deshecho.";render();
+      });
+      document.getElementById("continue").addEventListener("click",()=>{keepPlaying=true;status.textContent="¡A por una puntuación aún mayor!";render();});
+      newGame();
+    })();
+  </script>
+</body>
+</html>

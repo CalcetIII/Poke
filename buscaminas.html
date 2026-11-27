@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#101829">
+  <title>Buscaminas — Arcade Club</title>
+  <style>
+    :root{color-scheme:dark;--ink:#f5f2df;--muted:#a7b3c2;--mint:#78f0bc}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:12px;color:var(--ink);font:15px/1.5 "Trebuchet MS",system-ui,sans-serif;background:radial-gradient(ellipse at 50% 0%,#263c58 0,#111a2b 55%,#0b1120 100%)}
+    .shell{width:min(640px,100%)}.top{display:flex;justify-content:space-between;margin-bottom:10px}a{color:var(--mint);font-weight:800;text-decoration:none}
+    .panel{padding:clamp(12px,3vw,23px);border:1px solid #32445c;border-radius:18px;background:linear-gradient(160deg,#1c2a40,#111b2b);box-shadow:0 18px 50px #05091488}
+    .head{display:flex;justify-content:space-between;align-items:center;gap:12px}h1{margin:0;font-size:clamp(24px,5vw,36px)}.hint{margin:3px 0;color:var(--muted);font-size:13px}
+    select,button{font:inherit}select{max-width:48%;padding:8px;color:var(--ink);border:1px solid #435b75;border-radius:8px;background:#17263a}
+    .stats{display:flex;justify-content:space-between;gap:8px;margin:12px 2px;color:var(--muted);font-size:12px;font-weight:900}.stats b{color:#ffd166}
+    .board-wrap{overflow:auto;padding:5px;border:1px solid #455b75;border-radius:10px;background:#0d1625}
+    .board{display:grid;gap:2px;width:min(100%,500px);margin:auto;touch-action:manipulation}
+    .cell{min-width:0;aspect-ratio:1;padding:0;border:1px solid #63758a;border-radius:3px;color:#152033;background:linear-gradient(145deg,#c1d0d5,#748ba0);font-weight:1000;font-size:clamp(10px,2.7vw,17px);cursor:pointer}
+    .cell:hover:not(.open){filter:brightness(1.15)}
+    .cell.open{border-color:#455469;background:#263547;cursor:default}
+    .cell.flag{color:#ff737f}.cell.mine{background:#71374a;color:#fff}.cell.exploded{background:#f44}
+    .n1{color:#71c5ff}.n2{color:#78f0bc}.n3{color:#ff8b76}.n4{color:#bc9cff}.n5{color:#ffd166}.n6{color:#7df1e5}.n7{color:#fff}.n8{color:#b4bdc8}
+    .actions{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:12px}
+    button.action{border:0;border-radius:9px;padding:9px 14px;color:#172331;background:linear-gradient(#ffe08c,#ffc34f);box-shadow:0 4px 0 #b47528;font-weight:900;cursor:pointer}
+    button.action.secondary{color:var(--ink);background:#293b53;border:1px solid #51637a;box-shadow:none}
+    button.active{border-color:var(--mint)!important;color:var(--mint)!important}
+    #status{min-height:23px;margin:10px 0 0;text-align:center;color:#d5dfeb}
+    @media(max-width:520px){body{padding:7px}.panel{padding:10px}.head{align-items:flex-start;flex-direction:column}select{max-width:100%;width:100%}.board{width:100%}.cell{font-size:clamp(9px,3.8vw,15px)}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <nav class="top"><a href="./">← Todos los juegos</a><span>ARCADE CLUB</span></nav>
+    <section class="panel">
+      <div class="head"><div><h1>💣 Buscaminas</h1><p class="hint">Despeja el tablero sin pisar una mina.</p></div>
+        <select id="difficulty" aria-label="Dificultad"><option value="easy">Fácil · 9 × 9</option><option value="medium">Medio · 16 × 16</option><option value="hard">Experto · 16 × 16</option></select>
+      </div>
+      <div class="stats"><span>MINAS <b id="mines-left">10</b></span><span>TIEMPO <b id="time">000</b></span><span>RÉCORD <b id="best">—</b></span></div>
+      <div class="board-wrap"><div id="board" class="board" role="grid" aria-label="Tablero de Buscaminas"></div></div>
+      <div class="actions"><button id="new" class="action" type="button">NUEVA PARTIDA</button><button id="flag-mode" class="action secondary" type="button" aria-pressed="false">⚑ MODO BANDERA: NO</button></div>
+      <p id="status" aria-live="polite">Clic izquierdo para revelar · clic derecho o modo bandera para marcar.</p>
+    </section>
+  </main>
+  <script>
+    (() => {
+      "use strict";
+      const configs={easy:{rows:9,cols:9,mines:10},medium:{rows:16,cols:16,mines:40},hard:{rows:16,cols:16,mines:60}};
+      const boardElement=document.getElementById("board"),difficulty=document.getElementById("difficulty");
+      const minesLabel=document.getElementById("mines-left"),timeLabel=document.getElementById("time"),bestLabel=document.getElementById("best");
+      const status=document.getElementById("status"),flagButton=document.getElementById("flag-mode");
+      let config,cells=[],minesPlaced=false,gameOver=false,won=false,flagMode=false,flags=0,revealed=0,seconds=0,timer=null;
+      function key(){return `mines-best-${difficulty.value}`;}
+      function loadBest(){try{bestLabel.textContent=localStorage.getItem(key())||"—";}catch{bestLabel.textContent="—";}}
+      function render(){
+        boardElement.replaceChildren();boardElement.style.gridTemplateColumns=`repeat(${config.cols},minmax(0,1fr))`;
+        cells.forEach((cell,index)=>{
+          const button=document.createElement("button");button.type="button";button.className="cell";
+          button.setAttribute("role","gridcell");
+          button.setAttribute("aria-label",cell.open?(cell.mine?"Mina":cell.count?`Mina cerca: ${cell.count}`:"Vacía"):`Casilla ${index+1}, oculta`);
+          if(cell.open){button.classList.add("open");if(cell.mine){button.classList.add("mine");button.textContent="✹";}else if(cell.count){button.textContent=String(cell.count);button.classList.add(`n${cell.count}`);}}
+          else if(cell.flag){button.classList.add("flag");button.textContent="⚑";}
+          if(cell.exploded)button.classList.add("exploded");
+          button.addEventListener("click",()=>flagMode?toggleFlag(index):reveal(index));
+          button.addEventListener("contextmenu",event=>{event.preventDefault();toggleFlag(index);});
+          boardElement.appendChild(button);
+        });
+        minesLabel.textContent=String(config.mines-flags);timeLabel.textContent=String(seconds).padStart(3,"0");
+      }
+      function neighbors(index){
+        const row=Math.floor(index/config.cols),col=index%config.cols,result=[];
+        for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
+          if(!dr&&!dc)continue;const r=row+dr,c=col+dc;
+          if(r>=0&&r<config.rows&&c>=0&&c<config.cols)result.push(r*config.cols+c);
+        }
+        return result;
+      }
+      function placeMines(safeIndex){
+        const safe=new Set([safeIndex,...neighbors(safeIndex)]);
+        const candidates=cells.map((_,i)=>i).filter(i=>!safe.has(i));
+        for(let i=candidates.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[candidates[i],candidates[j]]=[candidates[j],candidates[i]];}
+        candidates.slice(0,config.mines).forEach(i=>cells[i].mine=true);
+        cells.forEach((cell,index)=>{cell.count=neighbors(index).filter(i=>cells[i].mine).length;});
+        minesPlaced=true;timer=setInterval(()=>{seconds++;timeLabel.textContent=String(seconds).padStart(3,"0");},1000);
+      }
+      function toggleFlag(index){
+        if(gameOver||cells[index].open)return;
+        if(!cells[index].flag&&flags>=config.mines)return;
+        cells[index].flag=!cells[index].flag;flags+=cells[index].flag?1:-1;render();
+      }
+      function reveal(index){
+        if(gameOver||cells[index].open||cells[index].flag)return;
+        if(!minesPlaced)placeMines(index);
+        const cell=cells[index];
+        if(cell.mine){cell.open=true;cell.exploded=true;gameOver=true;clearInterval(timer);status.textContent="¡Boom! Has encontrado una mina.";cells.forEach(c=>{if(c.mine)c.open=true;});render();return;}
+        const queue=[index];
+        while(queue.length){
+          const current=queue.pop(),target=cells[current];
+          if(target.open||target.flag||target.mine)continue;
+          target.open=true;revealed++;
+          if(!target.count)neighbors(current).forEach(n=>{if(!cells[n].open&&!cells[n].mine&&!cells[n].flag)queue.push(n);});
+        }
+        if(revealed===config.rows*config.cols-config.mines){
+          won=true;gameOver=true;clearInterval(timer);
+          cells.forEach(c=>{if(c.mine&&!c.flag)c.flag=true;});flags=config.mines;
+          status.textContent=`¡Tablero despejado en ${seconds} segundos!`;
+          let previous=Infinity;
+          try{const stored=localStorage.getItem(key());if(stored!==null){const saved=Number(stored);if(Number.isFinite(saved)&&saved>=0)previous=saved;}}catch{status.textContent="No se pudo leer el récord anterior.";}
+          if(seconds<previous){try{localStorage.setItem(key(),String(seconds));}catch{status.textContent+=" No se pudo guardar el récord.";}loadBest();}
+        }
+        render();
+      }
+      function newGame(){
+        clearInterval(timer);config=configs[difficulty.value];
+        cells=Array.from({length:config.rows*config.cols},()=>({mine:false,open:false,flag:false,count:0,exploded:false}));
+        minesPlaced=false;gameOver=false;won=false;flags=0;revealed=0;seconds=0;flagMode=false;
+        flagButton.textContent="⚑ MODO BANDERA: NO";flagButton.classList.remove("active");flagButton.setAttribute("aria-pressed","false");
+        status.textContent="Clic izquierdo para revelar · clic derecho o modo bandera para marcar.";
+        loadBest();render();
+      }
+      document.getElementById("new").addEventListener("click",newGame);
+      difficulty.addEventListener("change",newGame);
+      flagButton.addEventListener("click",()=>{
+        flagMode=!flagMode;flagButton.textContent=`⚑ MODO BANDERA: ${flagMode?"SÍ":"NO"}`;
+        flagButton.classList.toggle("active",flagMode);flagButton.setAttribute("aria-pressed",String(flagMode));
+      });
+      newGame();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#101829">
+  <title>Memoria Pixel — Arcade Club</title>
+  <style>
+    :root{color-scheme:dark;--ink:#f5f2df;--muted:#a7b3c2;--mint:#78f0bc}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:14px;color:var(--ink);font:15px/1.5 "Trebuchet MS",system-ui,sans-serif;background:radial-gradient(ellipse at 50% 0%,#263c58 0,#111a2b 55%,#0b1120 100%)}
+    .shell{width:min(650px,100%)}.top{display:flex;justify-content:space-between;margin-bottom:12px}a{color:var(--mint);font-weight:800;text-decoration:none}
+    .panel{padding:clamp(14px,4vw,27px);border:1px solid #32445c;border-radius:18px;background:linear-gradient(160deg,#1c2a40,#111b2b);box-shadow:0 18px 50px #05091488}
+    .heading{display:flex;justify-content:space-between;align-items:center;gap:12px}h1{margin:0;font-size:clamp(24px,5vw,36px)}.hint{margin:3px 0;color:var(--muted);font-size:13px}
+    select,button{font:inherit}select{padding:8px;color:var(--ink);border:1px solid #435b75;border-radius:8px;background:#17263a}
+    .stats{display:flex;justify-content:space-between;margin:14px 2px;color:var(--muted);font-weight:800}.stats b{color:#ffd166}
+    .board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+    .card{aspect-ratio:1;display:grid;place-items:center;border:1px solid #4d6580;border-radius:12px;color:transparent;background:linear-gradient(145deg,#293b55,#1a2a40);box-shadow:inset 0 0 18px #0a122055;font-size:clamp(28px,8vw,48px);cursor:pointer;transition:transform .18s,background .18s,border-color .18s}
+    .card:before{content:"✦";color:#82a0bd;font-size:clamp(22px,6vw,36px)}
+    .card.open,.card.matched{color:var(--ink);background:#253d50;border-color:var(--mint);transform:scale(1.02)}
+    .card.open:before,.card.matched:before{content:none}
+    .card.matched{background:#1d443e;border-color:#78f0bc;cursor:default}
+    .card:focus-visible,button:focus-visible,select:focus-visible{outline:3px solid var(--mint);outline-offset:2px}
+    #status{min-height:24px;text-align:center;color:#d5dfeb}
+    .actions{display:flex;justify-content:center;gap:8px}
+    button.action{border:0;border-radius:10px;padding:10px 18px;color:#172331;background:linear-gradient(#ffe08c,#ffc34f);box-shadow:0 4px 0 #b47528;font-weight:900;cursor:pointer}
+    @media(max-width:520px){body{padding:8px}.panel{padding:12px}.heading{align-items:flex-start;flex-direction:column}.board{gap:6px}.card{border-radius:8px}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <nav class="top"><a href="./">← Todos los juegos</a><span>ARCADE CLUB</span></nav>
+    <section class="panel">
+      <div class="heading"><div><h1>🧠 Memoria Pixel</h1><p class="hint">Encuentra todas las parejas. ¿Puedes hacerlo con pocos intentos?</p></div>
+        <label><span class="hint">TABLERO </span><select id="difficulty" aria-label="Tamaño del tablero"><option value="16">4 × 4 · Normal</option><option value="36">6 × 6 · Experto</option></select></label>
+      </div>
+      <div class="stats"><span>INTENTOS <b id="moves">0</b></span><span>PAREJAS <b id="pairs">0/8</b></span><span>TIEMPO <b id="time">00:00</b></span></div>
+      <div id="board" class="board" aria-label="Cartas de memoria"></div>
+      <p id="status" aria-live="polite">Voltea dos cartas y encuentra sus parejas.</p>
+      <div class="actions"><button id="restart" class="action" type="button">MEZCLAR CARTAS</button></div>
+    </section>
+  </main>
+  <script>
+    (() => {
+      "use strict";
+      const icons=["🚀","🍉","🦊","🎸","🌙","🐙","🍩","⚡","🪐","🦋","🍄","🛹","🐸","💎","🧩","🌈","🐼","🍕"];
+      const board=document.getElementById("board"),movesLabel=document.getElementById("moves"),pairsLabel=document.getElementById("pairs");
+      const timeLabel=document.getElementById("time"),status=document.getElementById("status"),difficulty=document.getElementById("difficulty");
+      let cards=[],first=null,locked=false,moves=0,matches=0,startedAt=0,timer=null,flipTimer=null,finished=false;
+      function shuffle(items){for(let i=items.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[items[i],items[j]]=[items[j],items[i]];}return items;}
+      function formatTime(seconds){return `${String(Math.floor(seconds/60)).padStart(2,"0")}:${String(seconds%60).padStart(2,"0")}`;}
+      function startClock(){
+        clearInterval(timer);startedAt=Date.now();
+        timer=setInterval(()=>{timeLabel.textContent=formatTime(Math.floor((Date.now()-startedAt)/1000));},250);
+      }
+      function newGame(){
+        clearInterval(timer);clearTimeout(flipTimer);flipTimer=null;const count=Number(difficulty.value),pairCount=count/2;
+        cards=shuffle([...icons.slice(0,pairCount),...icons.slice(0,pairCount)].map((icon,index)=>({id:index,icon,open:false,matched:false})));
+        first=null;locked=false;moves=0;matches=0;finished=false;
+        movesLabel.textContent="0";pairsLabel.textContent=`0/${pairCount}`;timeLabel.textContent="00:00";
+        status.textContent="Voltea dos cartas y encuentra sus parejas.";
+        board.style.gridTemplateColumns=`repeat(${Math.sqrt(count)},minmax(0,1fr))`;board.replaceChildren();
+        cards.forEach((card,index)=>{
+          const button=document.createElement("button");button.type="button";button.className="card";
+          button.setAttribute("aria-label",`Carta ${index+1}, oculta`);
+          button.addEventListener("click",()=>flip(index,button));board.appendChild(button);
+        });
+      }
+      function flip(index,button){
+        const card=cards[index];if(locked||card.open||card.matched||finished)return;
+        if(!startedAt)startClock();
+        card.open=true;button.classList.add("open");button.textContent=card.icon;
+        button.setAttribute("aria-label",`Carta ${index+1}: ${card.icon}`);
+        if(first===null){first=index;return;}
+        moves++;movesLabel.textContent=String(moves);
+        const firstCard=cards[first],firstButton=board.children[first];
+        if(firstCard.icon===card.icon){
+          firstCard.matched=card.matched=true;
+          firstButton.classList.add("matched");button.classList.add("matched");
+          firstButton.setAttribute("aria-label",`Pareja encontrada: ${card.icon}`);
+          button.setAttribute("aria-label",`Pareja encontrada: ${card.icon}`);
+          matches++;pairsLabel.textContent=`${matches}/${cards.length/2}`;first=null;
+          if(matches===cards.length/2){finished=true;clearInterval(timer);status.textContent=`¡Completado en ${moves} intentos y ${timeLabel.textContent}!`;}
+        }else{
+          locked=true;const previous=first;first=null;
+          flipTimer=setTimeout(()=>{
+            cards[previous].open=false;card.open=false;
+            firstButton.classList.remove("open");button.classList.remove("open");
+            firstButton.textContent="";button.textContent="";
+            firstButton.setAttribute("aria-label",`Carta ${previous+1}, oculta`);
+            button.setAttribute("aria-label",`Carta ${index+1}, oculta`);
+            locked=false;flipTimer=null;
+          },720);
+        }
+      }
+      document.getElementById("restart").addEventListener("click",newGame);
+      difficulty.addEventListener("change",newGame);
+      newGame();
+    })();
+  </script>
+</body>
+</html>

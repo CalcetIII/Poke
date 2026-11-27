@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#101829">
+  <title>Brick Breaker — Arcade Club</title>
+  <style>
+    :root{color-scheme:dark;--ink:#f5f2df;--muted:#a7b3c2;--mint:#78f0bc}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:14px;color:var(--ink);font:15px/1.5 "Trebuchet MS",system-ui,sans-serif;background:radial-gradient(ellipse at 50% 0%,#263c58 0,#111a2b 55%,#0b1120 100%)}
+    .shell{width:min(820px,100%)}.top{display:flex;justify-content:space-between;margin-bottom:12px}a{color:var(--mint);font-weight:800;text-decoration:none}
+    .panel{padding:clamp(12px,3vw,24px);border:1px solid #32445c;border-radius:18px;background:linear-gradient(160deg,#1c2a40,#111b2b);box-shadow:0 18px 50px #05091488}
+    .head{display:flex;justify-content:space-between;align-items:center;gap:12px}h1{margin:0;font-size:clamp(24px,5vw,36px)}.hint{margin:3px 0;color:var(--muted);font-size:13px}
+    .stats{display:flex;justify-content:space-between;margin:9px 3px;color:var(--muted);font-weight:800}.stats b{color:#ffd166}
+    canvas{display:block;width:100%;height:auto;border:2px solid #52667b;border-radius:10px;background:#10172b;touch-action:none}
+    #status{text-align:center;min-height:24px;margin:9px 0;color:#d5dfeb}.actions{display:flex;justify-content:center}
+    button{border:0;border-radius:10px;padding:10px 18px;color:#172331;background:linear-gradient(#ffe08c,#ffc34f);box-shadow:0 4px 0 #b47528;font:900 14px "Trebuchet MS",system-ui,sans-serif;cursor:pointer}
+    .touch{display:none;justify-content:space-between;gap:10px;margin-top:12px}.touch button{width:48%;color:var(--ink);background:#293b53;border:1px solid #51637a;box-shadow:none;font-size:20px;touch-action:none}
+    @media(pointer:coarse){.touch{display:flex}}@media(max-width:540px){body{padding:8px}.panel{padding:10px}.head{align-items:flex-start;flex-direction:column}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <nav class="top"><a href="./">← Todos los juegos</a><span>ARCADE CLUB</span></nav>
+    <section class="panel">
+      <div class="head"><div><h1>🧱 Brick Breaker</h1><p class="hint">Rompe todos los bloques y no dejes caer la bola.</p></div><span class="hint">RATÓN · A/D · FLECHAS</span></div>
+      <div class="stats"><span>PUNTOS <b id="score">0</b></span><span>NIVEL <b id="level">1</b></span><span>VIDAS <b id="lives">3</b></span></div>
+      <canvas id="game" width="760" height="520" aria-label="Juego Brick Breaker"></canvas>
+      <p id="status" aria-live="polite">Pulsa JUGAR y usa la pala para lanzar la bola.</p>
+      <div class="actions"><button id="start" type="button">JUGAR</button></div>
+      <div class="touch"><button data-dir="-1" type="button" aria-label="Pala a la izquierda">◀</button><button data-dir="1" type="button" aria-label="Pala a la derecha">▶</button></div>
+    </section>
+  </main>
+  <script>
+    (() => {
+      "use strict";
+      const W=760,H=520,canvas=document.getElementById("game"),ctx=canvas.getContext("2d");
+      const scoreLabel=document.getElementById("score"),levelLabel=document.getElementById("level"),livesLabel=document.getElementById("lives");
+      const status=document.getElementById("status"),startButton=document.getElementById("start"),keys=new Set();
+      const paddle={x:W/2,y:H-35,w:105,h:13},ball={x:W/2,y:H-52,r:8,vx:3,vy:-5};
+      let bricks=[],score=0,lives=3,level=1,state="ready",last=0,frame=0,servePending=true;
+      const colors=["#78f0bc","#7bd7ff","#b69aff","#ffd166","#ff91b4"];
+      function makeBricks(){
+        bricks=[];const cols=10,rows=Math.min(5+Math.floor((level-1)/2),7),gap=7,pad=30,w=(W-pad*2-gap*(cols-1))/cols;
+        for(let row=0;row<rows;row++)for(let col=0;col<cols;col++)bricks.push({x:pad+col*(w+gap),y:64+row*27,w,h:18,hp:1+(level>3&&row<2?1:0),color:colors[row%colors.length]});
+      }
+      function draw(){
+        ctx.fillStyle="#10172b";ctx.fillRect(0,0,W,H);
+        for(let i=0;i<35;i++){ctx.fillStyle="#ffffff12";ctx.fillRect((i*97)%W,(i*53)%H,2,2);}
+        bricks.forEach(b=>{ctx.fillStyle=b.color;ctx.globalAlpha=b.hp>1?.65:1;ctx.beginPath();ctx.roundRect(b.x,b.y,b.w,b.h,5);ctx.fill();ctx.globalAlpha=1;ctx.fillStyle="#ffffff55";ctx.fillRect(b.x+5,b.y+3,b.w-10,2);});
+        ctx.shadowColor="#78f0bc";ctx.shadowBlur=12;ctx.fillStyle="#78f0bc";ctx.beginPath();ctx.roundRect(paddle.x-paddle.w/2,paddle.y,paddle.w,paddle.h,7);ctx.fill();ctx.shadowBlur=0;
+        ctx.shadowColor="#fff";ctx.shadowBlur=15;ctx.fillStyle="#fff4cc";ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
+        if(state==="ready"||state==="over"||state==="won"){
+          ctx.fillStyle="#070d1dcc";ctx.fillRect(0,0,W,H);ctx.textAlign="center";ctx.fillStyle="#f5f2df";ctx.font="bold 36px system-ui";
+          ctx.fillText(state==="ready"?"BRICK BREAKER":state==="won"?"¡NIVEL COMPLETADO!":"FIN DE PARTIDA",W/2,H/2-12);
+          ctx.fillStyle="#c7d4e4";ctx.font="16px system-ui";ctx.fillText(state==="ready"?"Mueve la pala y pulsa JUGAR para lanzar":state==="won"?"Pulsa JUGAR para el siguiente nivel":"Pulsa JUGAR para volver a intentarlo",W/2,H/2+23);
+        }
+      }
+      function resetBall(){ball.x=paddle.x;ball.y=paddle.y-ball.r-3;ball.vx=(Math.random()-.5)*5;ball.vy=-5-Math.min(level,4);servePending=true;}
+      function start(){
+        cancelAnimationFrame(frame);
+        if(state==="won"){level++;levelLabel.textContent=String(level);makeBricks();}
+        else if(state==="over"){score=0;lives=3;level=1;scoreLabel.textContent="0";livesLabel.textContent="3";levelLabel.textContent="1";makeBricks();}
+        if(!bricks.length)makeBricks();
+        state="playing";startButton.textContent="REINICIAR";status.textContent="¡A romper bloques! Pulsa espacio o toca para lanzar.";
+        resetBall();last=performance.now();frame=requestAnimationFrame(loop);draw();
+      }
+      function movePaddle(x){paddle.x=Math.max(paddle.w/2+8,Math.min(W-paddle.w/2-8,x));if(servePending){ball.x=paddle.x;ball.y=paddle.y-ball.r-3;}}
+      function loop(time){
+        if(state!=="playing")return;
+        const dt=Math.min((time-last)/16.67,2.2);last=time;
+        if(keys.has("ArrowLeft")||keys.has("KeyA"))movePaddle(paddle.x-7*dt);
+        if(keys.has("ArrowRight")||keys.has("KeyD"))movePaddle(paddle.x+7*dt);
+        if(servePending){ball.x=paddle.x;ball.y=paddle.y-ball.r-3;}
+        else{
+          ball.x+=ball.vx*dt;ball.y+=ball.vy*dt;
+          if(ball.x<ball.r||ball.x>W-ball.r)ball.vx*=-1;
+          if(ball.y<ball.r)ball.vy=Math.abs(ball.vy);
+          if(ball.vy>0&&ball.y+ball.r>=paddle.y&&ball.y-ball.r<=paddle.y+paddle.h&&ball.x>=paddle.x-paddle.w/2&&ball.x<=paddle.x+paddle.w/2){
+            const hit=(ball.x-paddle.x)/(paddle.w/2);ball.vx=hit*7;ball.vy=-Math.max(4,Math.abs(ball.vy));ball.y=paddle.y-ball.r;
+          }
+          const index=bricks.findIndex(b=>ball.x+ball.r>b.x&&ball.x-ball.r<b.x+b.w&&ball.y+ball.r>b.y&&ball.y-ball.r<b.y+b.h);
+          if(index>=0){const b=bricks[index];b.hp--;ball.vy*=-1;score+=10;scoreLabel.textContent=String(score);if(b.hp<=0)bricks.splice(index,1);}
+          if(ball.y>H+ball.r){lives--;livesLabel.textContent=String(lives);if(lives<=0){state="over";startButton.textContent="OTRA PARTIDA";status.textContent="La bola se escapó. ¡Prueba de nuevo!";draw();return;}resetBall();}
+          if(!bricks.length){state="won";status.textContent="¡Buen trabajo! Prepárate para el siguiente nivel.";startButton.textContent="SIGUIENTE NIVEL";draw();return;}
+        }
+        draw();frame=requestAnimationFrame(loop);
+      }
+      canvas.addEventListener("pointermove",event=>{const rect=canvas.getBoundingClientRect();movePaddle((event.clientX-rect.left)*W/rect.width);});
+      canvas.addEventListener("pointerdown",()=>{if(state==="playing")servePending=false;});
+      document.addEventListener("keydown",event=>{keys.add(event.code);if(event.code==="Space"){event.preventDefault();if(state==="playing")servePending=false;}});
+      document.addEventListener("keyup",event=>keys.delete(event.code));
+      window.addEventListener("blur",()=>keys.clear());
+      document.querySelectorAll("[data-dir]").forEach(button=>{
+        const dir=Number(button.dataset.dir);button.addEventListener("pointerdown",event=>{event.preventDefault();button.setPointerCapture(event.pointerId);keys.add(dir<0?"ArrowLeft":"ArrowRight");});
+        for(const type of ["pointerup","pointercancel","lostpointercapture"])button.addEventListener(type,()=>keys.delete(dir<0?"ArrowLeft":"ArrowRight"));
+      });
+      startButton.addEventListener("click",start);makeBricks();draw();
+    })();
+  </script>
+</body>
+</html>

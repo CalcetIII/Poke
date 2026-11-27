@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#101829">
+  <title>Canyon Racer — Arcade Club</title>
+  <style>
+    :root{color-scheme:dark;--ink:#f5f2df;--muted:#a7b3c2;--mint:#78f0bc}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:12px;color:var(--ink);font:15px/1.5 "Trebuchet MS",system-ui,sans-serif;background:radial-gradient(ellipse at 50% 0%,#263c58 0,#111a2b 55%,#0b1120 100%)}
+    .shell{width:min(650px,100%)}.top{display:flex;justify-content:space-between;margin-bottom:10px}a{color:var(--mint);font-weight:800;text-decoration:none}
+    .panel{padding:clamp(12px,3vw,23px);border:1px solid #32445c;border-radius:18px;background:linear-gradient(160deg,#1c2a40,#111b2b);box-shadow:0 18px 50px #05091488}
+    .head{display:flex;justify-content:space-between;align-items:center;gap:12px}h1{margin:0;font-size:clamp(24px,5vw,36px)}.hint{margin:3px 0;color:var(--muted);font-size:13px}
+    .stats{display:flex;justify-content:space-between;margin:9px 3px;color:var(--muted);font-weight:900}.stats b{color:#ffd166}
+    canvas{display:block;width:min(100%,500px);height:auto;margin:auto;border:2px solid #52667b;border-radius:10px;background:#111b26;touch-action:none}
+    #status{min-height:24px;margin:9px 0;text-align:center;color:#d5dfeb}
+    .actions{display:flex;justify-content:center;gap:8px}button{border:0;border-radius:10px;padding:10px 18px;color:#172331;background:linear-gradient(#ffe08c,#ffc34f);box-shadow:0 4px 0 #b47528;font:900 14px "Trebuchet MS",system-ui,sans-serif;cursor:pointer}
+    .touch{display:none;justify-content:space-between;gap:10px;margin-top:12px}.touch button{width:49%;padding:14px;color:var(--ink);background:#293b53;border:1px solid #51637a;box-shadow:none;font-size:20px;touch-action:none}
+    @media(pointer:coarse){.touch{display:flex}}@media(max-width:520px){body{padding:7px}.panel{padding:10px}.head{align-items:flex-start;flex-direction:column}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <nav class="top"><a href="./">← Todos los juegos</a><span>ARCADE CLUB</span></nav>
+    <section class="panel">
+      <div class="head"><div><h1>🏎️ Canyon Racer</h1><p class="hint">Esquiva el tráfico, recoge energía y aguanta la velocidad.</p></div><span class="hint">FLECHAS / A-D · ESPACIO: TURBO</span></div>
+      <div class="stats"><span>DISTANCIA <b id="score">0</b> m</span><span>RÉCORD <b id="best">0</b> m</span><span>♥ <b id="lives">3</b></span></div>
+      <canvas id="game" width="500" height="600" aria-label="Carrera Canyon Racer"></canvas>
+      <p id="status" aria-live="polite">Pulsa JUGAR · recoge ⚡ para cargar el turbo.</p>
+      <div class="actions"><button id="start" type="button">JUGAR</button></div>
+      <div class="touch"><button data-dir="-1" type="button" aria-label="Carril izquierdo">◀</button><button data-dir="1" type="button" aria-label="Carril derecho">▶</button></div>
+    </section>
+  </main>
+  <script>
+    (() => {
+      "use strict";
+      const W=500,H=600,ROAD_LEFT=82,ROAD_RIGHT=418,lanes=[138,250,362];
+      const canvas=document.getElementById("game"),ctx=canvas.getContext("2d"),scoreLabel=document.getElementById("score");
+      const bestLabel=document.getElementById("best"),livesLabel=document.getElementById("lives"),status=document.getElementById("status");
+      const startButton=document.getElementById("start"),keys=new Set(),touch=new Set();
+      let lane=1,items=[],score=0,best=0,lives=3,speed=210,spawn=0,lineOffset=0,shield=0,turbo=0,last=0,frame=0,state="ready";
+      try{best=Number(localStorage.getItem("canyon-racer-best"))||0;}catch{status.textContent="No se pudo cargar el récord guardado.";}
+      bestLabel.textContent=String(best);
+      const held=key=>keys.has(key)||touch.has(key);
+      function drawCar(x,y,color,player=false){
+        ctx.fillStyle="#10151c";ctx.beginPath();ctx.roundRect(x-18,y+13,36,13,6);ctx.fill();
+        ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(x-17,y-25,34,52,10);ctx.fill();
+        ctx.fillStyle="#162437";ctx.beginPath();ctx.roundRect(x-12,y-12,24,17,5);ctx.fill();
+        ctx.fillStyle="#f5f2df";ctx.fillRect(x-12,y-20,6,3);ctx.fillRect(x+6,y-20,6,3);
+        ctx.fillStyle="#111";ctx.fillRect(x-22,y-14,6,13);ctx.fillRect(x+16,y-14,6,13);ctx.fillRect(x-22,y+10,6,13);ctx.fillRect(x+16,y+10,6,13);
+        if(player&&shield>0){ctx.strokeStyle="#ffe27a";ctx.lineWidth=3;ctx.beginPath();ctx.arc(x,y,34,0,Math.PI*2);ctx.stroke();}
+      }
+      function draw(){
+        ctx.fillStyle="#17281f";ctx.fillRect(0,0,W,H);
+        ctx.fillStyle="#253238";ctx.fillRect(ROAD_LEFT,0,ROAD_RIGHT-ROAD_LEFT,H);
+        ctx.fillStyle="#b6a36e";ctx.fillRect(ROAD_LEFT-5,0,5,H);ctx.fillRect(ROAD_RIGHT,0,5,H);
+        ctx.strokeStyle="#ffffff55";ctx.lineWidth=4;ctx.setLineDash([25,22]);ctx.lineDashOffset=-lineOffset;
+        ctx.beginPath();ctx.moveTo((lanes[0]+lanes[1])/2,0);ctx.lineTo((lanes[0]+lanes[1])/2,H);ctx.moveTo((lanes[1]+lanes[2])/2,0);ctx.lineTo((lanes[1]+lanes[2])/2,H);ctx.stroke();ctx.setLineDash([]);
+        items.forEach(item=>{
+          if(item.type==="energy"){ctx.font="27px system-ui";ctx.textAlign="center";ctx.fillText("⚡",item.x,item.y);}
+          else drawCar(item.x,item.y,item.color);
+        });
+        drawCar(lanes[lane],H-75,"#78f0bc",true);
+        if(turbo>0){ctx.fillStyle="#ffd166";ctx.fillRect(20,H-18,140*turbo,5);}
+        if(state==="ready"||state==="over"){
+          ctx.fillStyle="#07101ccc";ctx.fillRect(0,0,W,H);ctx.textAlign="center";
+          ctx.fillStyle="#f5f2df";ctx.font="bold 34px system-ui";ctx.fillText(state==="ready"?"CANYON RACER":"¡CHOQUE!",W/2,H/2-12);
+          ctx.fillStyle="#c7d4e4";ctx.font="16px system-ui";ctx.fillText(state==="ready"?"Cambia de carril y sobrevive al tráfico":"Pulsa JUGAR para otra carrera",W/2,H/2+22);
+        }
+      }
+      function changeLane(direction){lane=Math.max(0,Math.min(2,lane+direction));}
+      function start(){
+        cancelAnimationFrame(frame);lane=1;items=[];score=0;lives=3;speed=210;spawn=.5;lineOffset=0;shield=0;turbo=0;state="playing";
+        scoreLabel.textContent="0";livesLabel.textContent="3";startButton.textContent="REINICIAR";status.textContent="¡Acelera! El turbo te protege unos segundos.";
+        last=performance.now();frame=requestAnimationFrame(loop);
+      }
+      function finish(){
+        state="over";startButton.textContent="OTRA CARRERA";status.textContent=`Recorriste ${score} metros.`;
+        if(score>best){best=score;bestLabel.textContent=String(best);try{localStorage.setItem("canyon-racer-best",String(best));}catch{status.textContent+=" No se pudo guardar el récord."}}
+        draw();
+      }
+      function loop(time){
+        if(state!=="playing")return;
+        const dt=Math.min((time-last)/1000,.035);last=time;
+        speed=Math.min(430,speed+5*dt);score+=Math.floor(speed*dt/8);scoreLabel.textContent=String(score);lineOffset=(lineOffset+speed*dt)%47;
+        shield=Math.max(0,shield-dt);turbo=Math.max(0,turbo-dt);
+        if(held("ArrowLeft")||held("KeyA")){changeLane(-1);keys.delete("ArrowLeft");keys.delete("KeyA");touch.delete(-1);}
+        if(held("ArrowRight")||held("KeyD")){changeLane(1);keys.delete("ArrowRight");keys.delete("KeyD");touch.delete(1);}
+        spawn-=dt;
+        if(spawn<=0){
+          const laneIndex=Math.floor(Math.random()*3),energy=Math.random()<.17;
+          items.push({lane:laneIndex,x:lanes[laneIndex],y:-35,type:energy?"energy":"car",color:["#ff8196","#ffd166","#a99bff","#73d8ff"][Math.floor(Math.random()*4)]});
+          spawn=Math.max(.48,1.05-score/2600)+Math.random()*.35;
+        }
+        items.forEach(item=>item.y+=speed*dt);
+        items=items.filter(item=>{
+          if(item.lane!==lane)return item.y<H+40;
+          if(item.type==="energy"&&item.y>H-115&&item.y<H-35){turbo=3.5;score+=60;scoreLabel.textContent=String(score);return false;}
+          if(item.type==="car"&&item.y>H-110&&item.y<H-32){
+            if(turbo>0){score+=25;return false;}
+            if(shield<=0){lives--;livesLabel.textContent=String(lives);shield=.9;if(lives<=0){finish();return false;}}
+          }
+          return item.y<H+40;
+        });
+        draw();if(state==="playing")frame=requestAnimationFrame(loop);
+      }
+      document.addEventListener("keydown",event=>{
+        if(["ArrowLeft","ArrowRight","Space"].includes(event.code))event.preventDefault();
+        if(event.code==="ArrowLeft"||event.code==="KeyA"){keys.add(event.code);}
+        if(event.code==="ArrowRight"||event.code==="KeyD"){keys.add(event.code);}
+        if(event.code==="Space"&&!event.repeat&&state==="playing")turbo=Math.max(turbo,1.2);
+      });
+      document.addEventListener("keyup",event=>keys.delete(event.code));
+      window.addEventListener("blur",()=>{keys.clear();touch.clear();});
+      document.querySelectorAll("[data-dir]").forEach(button=>{
+        const dir=Number(button.dataset.dir);
+        button.addEventListener("pointerdown",event=>{event.preventDefault();button.setPointerCapture(event.pointerId);touch.add(dir);});
+        for(const type of ["pointerup","pointercancel","lostpointercapture"])button.addEventListener(type,()=>touch.delete(dir));
+      });
+      startButton.addEventListener("click",start);draw();
+    })();
+  </script>
+</body>
+</html>
