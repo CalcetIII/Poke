@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101829">
+  <meta name="description" content="Una colección de juegos gratis para jugar directamente en el navegador.">
+  <title>Arcade Club — juegos gratis</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #f5f2df;
+      --muted: #a7b3c2;
+      --panel: #18243a;
+      --line: #334762;
+      --gold: #ffd166;
+      --mint: #78f0bc;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; color: var(--ink);
+      font: 15px/1.5 "Trebuchet MS", system-ui, sans-serif;
+      background: radial-gradient(ellipse at 50% 0%, #263c58 0, #111a2b 52%, #0b1120 100%);
+    }
+    a { color: inherit; text-decoration: none; }
+    button, input { font: inherit; }
+    .shell { width: min(1120px, 100%); margin: auto; padding: 22px 20px 34px; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-mark {
+      width: 44px; height: 44px; display: grid; place-items: center;
+      border: 2px solid #607c95; border-radius: 13px; background: #203047;
+      font-size: 24px; box-shadow: 0 4px 0 #0b101b;
+    }
+    h1 { margin: 0; font-size: clamp(20px, 4vw, 29px); letter-spacing: .04em; }
+    .subtitle { color: var(--muted); font-size: 11px; letter-spacing: .15em; text-transform: uppercase; }
+    .header-tag { border: 1px solid var(--line); background: #172338; padding: 7px 12px; border-radius: 99px; color: #b7c8d8; font-size: 12px; }
+    .hero {
+      position: relative; overflow: hidden; margin: 26px 0 22px; padding: clamp(25px, 6vw, 54px);
+      border: 1px solid #3b526c; border-radius: 22px;
+      background: radial-gradient(ellipse at 83% 30%, #54427c 0, transparent 37%), linear-gradient(120deg, #1a2e47, #18213a 70%);
+      box-shadow: 0 18px 50px #05091488;
+    }
+    .hero:after { content: "🎮"; position: absolute; right: 7%; top: 50%; transform: translateY(-50%) rotate(-12deg); font-size: clamp(76px, 15vw, 150px); opacity: .8; filter: drop-shadow(0 14px 18px #090e1b88); }
+    .hero-copy { position: relative; z-index: 1; max-width: 610px; }
+    .eyebrow { color: var(--mint); font-weight: 800; letter-spacing: .16em; font-size: 11px; text-transform: uppercase; }
+    .hero h2 { margin: 8px 0; max-width: 570px; font-size: clamp(32px, 6vw, 56px); line-height: 1.05; }
+    .hero p { color: #c1ccda; max-width: 500px; margin: 0 0 21px; }
+    .button {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      border: 0; border-radius: 10px; padding: 11px 18px; color: #172331;
+      background: linear-gradient(#ffe08c, #ffc34f); box-shadow: 0 4px 0 #b47528;
+      font-weight: 900; transition: transform .12s, filter .12s;
+    }
+    .button:hover { transform: translateY(-2px); filter: brightness(1.08); }
+    .catalog-head { display: flex; justify-content: space-between; align-items: end; gap: 18px; margin: 26px 0 13px; }
+    .catalog-head h2 { margin: 0; font-size: 22px; }
+    .catalog-head p { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
+    .search {
+      width: min(260px, 100%); padding: 10px 13px; color: var(--ink);
+      border: 1px solid #3a506a; border-radius: 10px; outline: none; background: #131f32;
+    }
+    .search:focus { border-color: var(--mint); box-shadow: 0 0 0 3px #78f0bc22; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .card {
+      display: flex; flex-direction: column; min-width: 0; overflow: hidden;
+      border: 1px solid #32445c; border-radius: 16px; background: linear-gradient(160deg, #1c2a40, #111b2b);
+      box-shadow: 0 10px 28px #05091455; transition: transform .16s, border-color .16s;
+    }
+    .card:hover { transform: translateY(-4px); border-color: #7188a0; }
+    .card[hidden] { display: none; }
+    .art {
+      display: grid; place-items: center; height: 145px; font-size: 69px;
+      background: radial-gradient(circle at 50% 65%, var(--glow), transparent 49%), linear-gradient(135deg, var(--art-a), var(--art-b));
+    }
+    .card-copy { padding: 15px 16px 16px; display: flex; flex-direction: column; flex: 1; }
+    .card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .card h3 { margin: 0; font-size: 18px; }
+    .tag { border: 1px solid #496079; border-radius: 99px; padding: 3px 8px; color: #c3d1df; font-size: 10px; white-space: nowrap; }
+    .card p { min-height: 42px; margin: 8px 0 14px; color: var(--muted); font-size: 13px; }
+    .play-link { margin-top: auto; color: var(--mint); font-weight: 800; font-size: 13px; }
+    .play-link span { display: inline-block; transition: transform .12s; }
+    .card:hover .play-link span { transform: translateX(4px); }
+    .empty { display: none; padding: 24px; color: var(--muted); text-align: center; border: 1px dashed #3a506a; border-radius: 13px; }
+    footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 24px; padding-top: 14px; border-top: 1px solid #283951; color: #8292a5; font-size: 11px; }
+    @media (max-width: 760px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .hero:after { right: 3%; opacity: .4; } }
+    @media (max-width: 520px) {
+      .shell { padding: 15px 12px 25px; } .header-tag { display: none; }
+      .hero { margin-top: 18px; padding: 27px 21px; } .hero:after { right: -9px; top: 24px; transform: none; font-size: 78px; opacity: .3; }
+      .hero h2 { font-size: 35px; } .catalog-head { align-items: stretch; flex-direction: column; gap: 12px; }
+      .search { width: 100%; } .grid { grid-template-columns: 1fr; gap: 11px; }
+      .art { height: 125px; } footer { flex-direction: column; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *:before, *:after { scroll-behavior: auto !important; transition-duration: .01ms !important; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <a class="brand" href="./" aria-label="Arcade Club, inicio">
+        <span class="brand-mark" aria-hidden="true">✦</span>
+        <span><h1>ARCADE CLUB</h1><span class="subtitle">Tu rincón de juegos</span></span>
+      </a>
+      <span class="header-tag">JUEGA AL INSTANTE · SIN DESCARGAS</span>
+    </header>
+
+    <section class="hero" aria-labelledby="welcome">
+      <div class="hero-copy">
+        <span class="eyebrow">La diversión empieza aquí</span>
+        <h2 id="welcome">Elige un juego.<br>¡Y a jugar!</h2>
+        <p>Un pequeño arcade para jugar directamente en tu navegador. Busca tu favorito y lánzate a una partida.</p>
+        <a class="button" href="#juegos">EXPLORAR JUEGOS <span aria-hidden="true">↓</span></a>
+      </div>
+    </section>
+
+    <section aria-labelledby="catalog-title">
+      <div class="catalog-head">
+        <div><h2 id="catalog-title">Todos los juegos</h2><p>Elige tu próximo reto</p></div>
+        <input id="search" class="search" type="search" placeholder="🔎  Buscar un juego..." aria-label="Buscar un juego">
+      </div>
+      <div id="juegos" class="grid">
+        <a class="card" href="poke.html" data-search="pixel survivors criaturas supervivencia accion aventura">
+          <div class="art" style="--art-a:#193a42;--art-b:#253355;--glow:#78f0bc66" aria-hidden="true">🦊</div>
+          <div class="card-copy"><div class="card-top"><h3>Pixel Survivors</h3><span class="tag">ACCIÓN</span></div><p>Elige una criatura elemental, sobrevive a las oleadas y mejora tus poderes.</p><span class="play-link">Jugar ahora <span>→</span></span></div>
+        </a>
+        <a class="card" href="snake.html" data-search="snake serpiente clasico arcade reflejos">
+          <div class="art" style="--art-a:#174333;--art-b:#19334b;--glow:#82ed9366" aria-hidden="true">🐍</div>
+          <div class="card-copy"><div class="card-top"><h3>Snake</h3><span class="tag">CLÁSICO</span></div><p>Come las frutas, crece todo lo que puedas y no choques contigo mismo.</p><span class="play-link">Jugar ahora <span>→</span></span></div>
+        </a>
+        <a class="card" href="pong.html" data-search="pong tenis pelota arcade deporte reflejos">
+          <div class="art" style="--art-a:#533a27;--art-b:#342849;--glow:#ffd16666" aria-hidden="true">🏓</div>
+          <div class="card-copy"><div class="card-top"><h3>Pong</h3><span class="tag">ARCADE</span></div><p>Un duelo de palas contra la máquina. Llega a cinco puntos para ganar.</p><span class="play-link">Jugar ahora <span>→</span></span></div>
+        </a>
+        <a class="card" href="tres-en-raya.html" data-search="tres en raya gato tic tac toe tablero estrategia dos jugadores">
+          <div class="art" style="--art-a:#3b315a;--art-b:#193b49;--glow:#cf9cff66" aria-hidden="true">❎</div>
+          <div class="card-copy"><div class="card-top"><h3>Tres en raya</h3><span class="tag">2 JUGADORES</span></div><p>Consigue tres en línea en este clásico para jugar con alguien más.</p><span class="play-link">Jugar ahora <span>→</span></span></div>
+        </a>
+      </div>
+      <p class="empty" id="empty">No encontramos juegos con ese nombre. Prueba otra búsqueda.</p>
+    </section>
+
+    <footer><span>Hecho para jugar en tu navegador ✨</span><span>Más juegos próximamente</span></footer>
+  </main>
+  <script>
+    const search = document.getElementById("search");
+    const cards = [...document.querySelectorAll(".card")];
+    const empty = document.getElementById("empty");
+    search.addEventListener("input", () => {
+      const query = search.value.trim().toLocaleLowerCase("es");
+      let visible = 0;
+      cards.forEach(card => {
+        const matches = card.dataset.search.includes(query);
+        card.hidden = !matches;
+        if (matches) visible++;
+      });
+      empty.style.display = visible ? "none" : "block";
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101829">
+  <title>Pong — Arcade Club</title>
+  <style>
+    :root { color-scheme:dark; --ink:#f5f2df; --muted:#a7b3c2; --mint:#78f0bc; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; display:grid; place-items:center; padding:18px; color:var(--ink); font:15px/1.5 "Trebuchet MS",system-ui,sans-serif; background:radial-gradient(ellipse at 50% 0%,#263c58 0,#111a2b 55%,#0b1120 100%); }
+    .shell { width:min(820px,100%); }
+    .top { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+    .back { color:var(--mint); font-weight:800; text-decoration:none; }
+    .panel { padding:clamp(15px,4vw,27px); border:1px solid #32445c; border-radius:18px; background:linear-gradient(160deg,#1c2a40,#111b2b); box-shadow:0 18px 50px #05091488; text-align:center; }
+    h1 { margin:0; font-size:clamp(26px,7vw,38px); }
+    .hint { margin:4px 0 15px; color:var(--muted); }
+    .score { margin:0 0 9px; color:#ffd166; font-size:30px; font-weight:900; letter-spacing:.2em; }
+    canvas { display:block; width:100%; height:auto; border:2px solid #52667b; border-radius:10px; background:#101c29; }
+    #message { min-height:25px; margin:10px 0; color:#d5dfeb; }
+    button { border:0; border-radius:10px; padding:10px 18px; color:#172331; background:linear-gradient(#ffe08c,#ffc34f); box-shadow:0 4px 0 #b47528; font:900 14px "Trebuchet MS",system-ui,sans-serif; cursor:pointer; }
+    .touch { display:none; justify-content:center; gap:55px; margin-top:14px; }
+    .touch button { width:82px; padding:14px; color:var(--ink); background:#293b53; box-shadow:none; border:1px solid #51637a; font-size:20px; touch-action:none; }
+    @media (pointer:coarse) { .touch { display:flex; } }
+    @media (max-width:520px) { body { padding:10px; } .panel { padding:14px 10px; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <nav class="top"><a class="back" href="./">← Todos los juegos</a><span>ARCADE CLUB</span></nav>
+    <section class="panel">
+      <h1>🏓 Pong</h1>
+      <p class="hint">Mueve tu pala con W/S o ↑/↓. ¡El primero en llegar a 5 gana!</p>
+      <div class="score"><span id="player-score">0</span> : <span id="cpu-score">0</span></div>
+      <canvas id="board" width="800" height="500" aria-label="Partida de Pong contra el ordenador"></canvas>
+      <p id="message" aria-live="polite">Pulsa Jugar para comenzar</p>
+      <button id="start" type="button">JUGAR</button>
+      <div class="touch"><button id="up" type="button" aria-label="Subir pala">↑</button><button id="down" type="button" aria-label="Bajar pala">↓</button></div>
+    </section>
+  </main>
+  <script>
+    (() => {
+      "use strict";
+      const canvas = document.getElementById("board"), ctx = canvas.getContext("2d");
+      const playerLabel = document.getElementById("player-score");
+      const cpuLabel = document.getElementById("cpu-score");
+      const message = document.getElementById("message");
+      const startButton = document.getElementById("start");
+      const W = canvas.width, H = canvas.height, paddleH = 100, paddleW = 13;
+      const keys = new Set();
+      let playerY, cpuY, ball, playerScore, cpuScore, running = false, previousTime = 0, frame;
+      const clamp = (n, low, high) => Math.max(low, Math.min(high, n));
+
+      function draw() {
+        ctx.fillStyle = "#101c29"; ctx.fillRect(0, 0, W, H);
+        ctx.strokeStyle = "#ffffff30"; ctx.setLineDash([12, 14]); ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = "#78f0bc";
+        ctx.fillRect(24, playerY, paddleW, paddleH);
+        ctx.fillStyle = "#ffd166";
+        ctx.fillRect(W - 24 - paddleW, cpuY, paddleW, paddleH);
+        ctx.beginPath(); ctx.arc(ball.x, ball.y, 11, 0, Math.PI * 2); ctx.fillStyle = "#f5f2df"; ctx.fill();
+      }
+
+      function serve(toward) {
+        ball = { x: W / 2, y: H / 2, vx: toward * 340, vy: (Math.random() * 2 - 1) * 190 };
+      }
+
+      function scorePoint(side) {
+        if (side === "player") playerScore++; else cpuScore++;
+        playerLabel.textContent = String(playerScore);
+        cpuLabel.textContent = String(cpuScore);
+        if (playerScore === 5 || cpuScore === 5) {
+          running = false;
+          message.textContent = playerScore === 5 ? "¡Has ganado! ¡Partida perfecta!" : "La máquina gana esta vez. ¡Prueba otra vez!";
+          startButton.textContent = "JUGAR OTRA VEZ";
+          draw();
+          return false;
+        }
+        serve(side === "player" ? -1 : 1);
+        return true;
+      }
+
+      function tick(time) {
+        if (!running) return;
+        const dt = Math.min((time - previousTime) / 1000, .03);
+        previousTime = time;
+        if (keys.has("arrowup") || keys.has("w")) playerY -= 440 * dt;
+        if (keys.has("arrowdown") || keys.has("s")) playerY += 440 * dt;
+        playerY = clamp(playerY, 0, H - paddleH);
+        const cpuTarget = ball.y - paddleH / 2;
+        cpuY += clamp(cpuTarget - cpuY, -330 * dt, 330 * dt);
+        cpuY = clamp(cpuY, 0, H - paddleH);
+        ball.x += ball.vx * dt; ball.y += ball.vy * dt;
+        if (ball.y < 11 || ball.y > H - 11) ball.vy *= -1;
+
+        const leftX = 24 + paddleW, rightX = W - 24 - paddleW;
+        if (ball.vx < 0 && ball.x - 11 <= leftX && ball.x > leftX - 18 && ball.y >= playerY && ball.y <= playerY + paddleH) {
+          ball.x = leftX + 11;
+          ball.vx = Math.min(Math.abs(ball.vx) * 1.06, 680);
+          ball.vy += ((ball.y - (playerY + paddleH / 2)) / (paddleH / 2)) * 150;
+        }
+        if (ball.vx > 0 && ball.x + 11 >= rightX && ball.x < rightX + 18 && ball.y >= cpuY && ball.y <= cpuY + paddleH) {
+          ball.x = rightX - 11;
+          ball.vx = -Math.min(Math.abs(ball.vx) * 1.06, 680);
+          ball.vy += ((ball.y - (cpuY + paddleH / 2)) / (paddleH / 2)) * 150;
+        }
+        if (ball.x < 0 && !scorePoint("cpu")) return;
+        if (ball.x > W && !scorePoint("player")) return;
+        draw();
+        frame = requestAnimationFrame(tick);
+      }
+
+      function start() {
+        cancelAnimationFrame(frame);
+        playerScore = 0; cpuScore = 0;
+        playerY = cpuY = (H - paddleH) / 2;
+        playerLabel.textContent = "0"; cpuLabel.textContent = "0";
+        message.textContent = "¡Que empiece el partido!";
+        startButton.textContent = "REINICIAR";
+        serve(Math.random() < .5 ? -1 : 1);
+        running = true;
+        previousTime = performance.now();
+        draw();
+        frame = requestAnimationFrame(tick);
+      }
+
+      document.addEventListener("keydown", event => {
+        const key = event.key.toLowerCase();
+        if (["arrowup", "arrowdown", "w", "s"].includes(key)) { event.preventDefault(); keys.add(key); }
+      });
+      document.addEventListener("keyup", event => keys.delete(event.key.toLowerCase()));
+      window.addEventListener("blur", () => keys.clear());
+      function hold(button, key) {
+        button.addEventListener("pointerdown", event => { event.preventDefault(); keys.add(key); button.setPointerCapture(event.pointerId); });
+        for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) button.addEventListener(type, () => keys.delete(key));
+      }
+      hold(document.getElementById("up"), "arrowup");
+      hold(document.getElementById("down"), "arrowdown");
+      startButton.addEventListener("click", start);
+      playerY = cpuY = (H - paddleH) / 2; serve(1); draw();
+    })();
+  </script>
+</body>
+</html>
